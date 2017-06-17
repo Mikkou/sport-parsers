@@ -6,9 +6,11 @@ require_once __DIR__ . '/composer/autoload_real.php';
 
 require_once MAIN_DIR . '/Parser.php';
 
+//helpers
+require_once MAIN_DIR . '/helpers/proxyHelper.php';
+
 //classes dask
 require_once MAIN_DIR . '/boards/devbmbetscom/DevBmbetsComParser.php';
-require_once MAIN_DIR . '/boards/betbraincom/BetbrainComParser.php';
 
 //libraries
 require_once MAIN_DIR . '/vendor/simplehtmldom/Simple_html_dom.php';

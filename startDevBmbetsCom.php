@@ -16,7 +16,8 @@ foreach($urls as $urlOfCategory) {
     $parser = new DevBmbetsComParser(
         $urlOfCategory,
         $domain,
-        $days
+        $days,
+        $config
     );
 
     $parser->start();
