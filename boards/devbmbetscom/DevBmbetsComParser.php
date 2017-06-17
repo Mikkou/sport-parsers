@@ -27,9 +27,8 @@ class DevBmbetsComParser extends Parser
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.104 Safari/537.36',
             'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
             'Connection:keep-alive',
-            'Accept-Encoding:gzip, deflate',
             'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
-            'Cookie:__cfduid=dd3f03a6d77004c3beb759178d6e81d021497702622; cf_clearance=3da4737af93a75e1bf587e1b3d43c18a1d29d2db-1497702626-3600; Language=en-US; IsWelcome=1; __RequestVerificationToken=TfuUX9YHwGAsV3DKGGURwE4tb2xtcX23Yn28d_tpFMU0RZs_wYo-m_y0N-u-fT5BJSOMNyGx1BuHBBzTLPW7j4iMyTsei_ApcwNs3DMoSIA1; gmt=3; _hjIncludedInSample=1; _ga=GA1.2.1649876942.1497702636; _gid=GA1.2.283928410.1497702636; _gat=1',
+            'Cookie:__cfduid=da5ae61e755bd97072dccbe838ce141671497706408; cf_clearance=2da2140b16c9d673c6a284d035b947020ecf1142-1497716387-3600; Language=en-US; __RequestVerificationToken=KiyFzjh7e9BtchUvAiEGK955mnDdMONFYFfswjqDtpaAjDyLbDq4KdedLnO0Vxj49L5FvSJnULMMwXfFmLjGmI20tk9b9LZYLk9y5Y3-Irs1; gmt=3; _hjIncludedInSample=1; _ga=GA1.2.634684937.1497706431; _gid=GA1.2.1059422375.1497706431',
             'Host:dev.bmbets.com',
             'Upgrade-Insecure-Requests:1',
         ];
@@ -37,17 +36,49 @@ class DevBmbetsComParser extends Parser
         return $headers;
     }
 
-    public function getUrlsOnEvents($url)
+    public function getUrlsOnEvents($url, $forWhatDay)
     {
 
-        $cookies = $this->getCookies();
+        $url = $this->createUrl($url, $forWhatDay);
 
-        $headers = $this->getHeaders();
+        $html = $this->getHtmlContentFromUrl($url);
 
-        $html = $this->proxyHelper->getHtmlContentFromUrlWithProxy($url, $cookies, $headers, $this->domain);
+        //получаем объект из всех актуальных событий
+        $object = $this->getHtmlObject($html, 'tr[class="main-table-row  "]');
 
-        echo $html;
-        die;
+        $countEvents = count($object);
+
+        $arrayEventsUrls = [];
+
+        //собираем все ссылки в единый массив
+        for ($i = 0; $i < $countEvents; $i++) {
+
+            $partOfUrl = $object[$i]->children[2]->children[0]->children[0]->attr['href'];
+
+            //формируем полную ссылку
+            $link = "http://" . $this->domain . $partOfUrl;
+
+            $arrayEventsUrls[] = $link;
+
+        }
+
+        return $arrayEventsUrls;
+
+    }
+
+    protected function createUrl($url, $forWhatDay)
+    {
+        if ($forWhatDay === 1) {
+
+            $url .= "/" . date('Ymd');
+
+        } else {
+
+            $url .= "/" . (date('Ymd') + ($forWhatDay - 1));
+
+        }
+
+        return $url;
     }
 
 }

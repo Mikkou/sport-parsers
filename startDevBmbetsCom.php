@@ -11,6 +11,7 @@ require_once __DIR__ . '/boards/devbmbetscom/urls.php';
 $domain = "dev.bmbets.com";
 $days = 3;
 
+//TODO придумать что-нибудь с подчеркиваемыми переменными
 foreach($urls as $urlOfCategory) {
 
     $parser = new DevBmbetsComParser(

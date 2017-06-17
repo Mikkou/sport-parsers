@@ -3,7 +3,8 @@
 namespace parsersPicksgrail;
 
 use simple_html_dom;
-use parsers\Helpers\proxyHelper;
+use parsersPicksgrail\helpers\ProxyHelper;
+use parsersPicksgrail\helpers\DBHelper;
 
 abstract class Parser
 {
@@ -17,6 +18,7 @@ abstract class Parser
 
     protected $config;
 
+    //TODO оптимизировать этот конструктор
     function __construct($urlOfCategory, $domain, $days, $config)
     {
         $this->urlsOfCategory = $urlOfCategory;
@@ -29,28 +31,49 @@ abstract class Parser
 
         $this->simpleDom = new simple_html_dom();
 
-        $this->proxyHelper = new proxyHelper($config, $this->domain);
+        $this->proxyHelper = new ProxyHelper($config, $this->domain);
+
+        $dbHelper = new DBHelper;
+        $this->dbHelper = $dbHelper::getInstance($domain);
 
     }
 
     public function start() {
 
         //цикл для кол-ва дней, за которое нужно распарсить
-        for ($i = 1; $i <= $this->days; $i++) {
+        for ($forWhatDay = 1; $forWhatDay <= $this->days; $forWhatDay++) {
 
             //получение ссылок на все события
-            $urls = $this->getUrlsOnEvents($this->urlsOfCategory);
+            $arrayUrls = $this->getUrlsOnEvents($this->urlsOfCategory, $forWhatDay);
 
-            dump(1);
-            die;
+            //парсим содержимое событий
+            $events = $this->getDataOfEvents($arrayUrls);
 
         }
 
+        dump(1);
+        die;
+
     }
 
-    /*
+    public function getDataOfEvents($arrayUrls)
+    {
+        $resultArrayWithAllDataEvents = [];
+
+        foreach($arrayUrls as $url) {
+
+            $arrayDataForOneEvent = [];
+
+            $html = $this->getHtmlContentFromUrl($url);
+
+
+
+        }
+    }
+
     public function getHtmlContentFromUrl($parseUrl)
     {
+
 
         $cookies = $this->getCookies();
         $headers = $this->getHeaders();
@@ -59,7 +82,7 @@ abstract class Parser
 
         if (TEST_MOD === 0 && !empty($this->proxyHelper)) {
 
-            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domen);
+            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
 
         } else {
 
@@ -72,8 +95,8 @@ abstract class Parser
             curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
             curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 25);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 25);
 
             $html = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -94,17 +117,13 @@ abstract class Parser
 
             } else {
 
-                //проверка кодировки и последующий возврат html
-                return $this->checkHelper->checkEncoding($html, $this->domen);
+                return $html;
 
             }
 
         }
 
     }
-    */
-
-
 
     public function getHtmlObject($html, $selector) {
 
@@ -116,7 +135,7 @@ abstract class Parser
 
     }
 
-    abstract protected function getUrlsOnEvents($url);
+    abstract protected function getUrlsOnEvents($url, $forWhatDay);
     abstract protected function getCookies();
     abstract protected function getHeaders();
 
