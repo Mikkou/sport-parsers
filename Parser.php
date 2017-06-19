@@ -8,7 +8,7 @@ use parsersPicksgrail\helpers\DBHelper;
 
 abstract class Parser
 {
-    protected $urlsOfCategory;
+    protected $urlOfCategory;
 
     protected $domain;
 
@@ -18,10 +18,12 @@ abstract class Parser
 
     protected $config;
 
+    protected $urlOnEvent;
+
     //TODO оптимизировать этот конструктор
     function __construct($urlOfCategory, $domain, $days, $config)
     {
-        $this->urlsOfCategory = $urlOfCategory;
+        $this->urlOfCategory = $urlOfCategory;
 
         $this->domain = $domain;
 
@@ -43,15 +45,26 @@ abstract class Parser
         //цикл для кол-ва дней, за которое нужно распарсить
         for ($forWhatDay = 1; $forWhatDay <= $this->days; $forWhatDay++) {
 
+            $start = microtime(true);
+
             //получение ссылок на все события
-            $arrayUrls = $this->getUrlsOnEvents($this->urlsOfCategory, $forWhatDay);
+            $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
+
+            //dump($arrayUrls);
+
+            echo "Parsing urls from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
+
+            $start = microtime(true);
 
             //парсим содержимое событий
             $events = $this->getDataOfEvents($arrayUrls);
 
+            echo "Parsing event from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
+
+            //dump($events);
+
         }
 
-        dump(1);
         die;
 
     }
@@ -60,21 +73,87 @@ abstract class Parser
     {
         $resultArrayWithAllDataEvents = [];
 
-        foreach($arrayUrls as $url) {
+        //распаршивание каждого события
+        foreach($arrayUrls as $parseUrl) {
 
-            $arrayDataForOneEvent = [];
+            $start = microtime(true);
 
-            $html = $this->getHtmlContentFromUrl($url);
+            echo "Begin parse objects... \n";
 
+            //не загружается страница
+            $parseUrl = 'http://dev.bmbets.com/football/sweden/division-5/ifk-&#246;sterbymo-v-horn-hycklinge-if-1976803/';
+            //сделать преобразование в html сущность
+            //$parseUrl = 'http://dev.bmbets.com/football/sweden/division-5/ifk-&#246;sterbymo-v-horn-hycklinge-if-1976803/';
+            //рынки
+            //$parseUrl = 'http://dev.bmbets.com/football/korea-republic/k-league/ulsan-hyundai-v-jeju-united-1975696/';
+            //home-no-bet проверить
+            //$parseUrl = 'http://dev.bmbets.com/football/china-pr/fa-cup/shanghai-shenhua-v-beijing-guoan-1976760/#!/goal-line';
+            //рынки и букмейкеры
+            //$parseUrl = 'http://dev.bmbets.com/football/kazakhstan/kazakhstan-cup/kairat-almaty-v-ordabasy-1972615/';
 
+            //нет ставок
+            //http://prntscr.com/flrbv5
+            //$parseUrl = 'http://dev.bmbets.com/football/sweden/division-2-norra-svealand/eskilstuna-city-v-sundbybergs-ik-1968721/';
+            //$parseUrl = 'http://dev.bmbets.com/football/sweden/division-2-norrland/hudiksvall-v-harnosand-1977495/';
 
+            $w = chr(246);
+
+            dump("f" . $w . "s");
+
+            dump(chr(246));
+
+            dump(htmlspecialchars($parseUrl));
+            die;
+
+            //поулчение html страницы события
+            $html = $this->getHtmlContentFromUrl($parseUrl);
+
+            //выносим ссылку на события для использования в производных классах
+            $this->urlOnEvent = $parseUrl;
+
+            //ссылка на событие
+            $url['url'] = $parseUrl;
+
+            //получение даты начала события
+            $beginDate = $this->getBeginDate($html);
+
+            //получение времени начала события
+            $beginTime = $this->getBeginTime($html);
+
+            //получение вида спорта
+            $typeSport = $this->getTypeSport($html);
+
+            //получение страны
+            $country = $this->getCountry($html);
+
+            //получение имени чемпионата и его айди
+            $championship = $this->getChampionship($html);
+
+            //получение имени события
+            $nameEvent = $this->getNameEvent($html);
+
+            //получение имен рынков с их разделениями по таймаутам
+            $markets = $this->getMarkets($html);
+
+            //получение букмейкерских контор
+            $bookmakers = $this->getBookmakers($html);
+
+            //объединение всех данных
+            $arrayMergesData = array_merge($url, $beginDate, $beginTime, $typeSport, $country, $championship,
+                $nameEvent, $markets, $bookmakers);
+
+            dump($arrayMergesData);
+
+            $resultArrayWithAllDataEvents[] = $arrayMergesData;
+
+            echo "Parsing one event was " . (microtime(true) - $start) . " sec.\n";
         }
+
+        return $resultArrayWithAllDataEvents;
     }
 
     public function getHtmlContentFromUrl($parseUrl)
     {
-
-
         $cookies = $this->getCookies();
         $headers = $this->getHeaders();
 
@@ -138,5 +217,13 @@ abstract class Parser
     abstract protected function getUrlsOnEvents($url, $forWhatDay);
     abstract protected function getCookies();
     abstract protected function getHeaders();
+    abstract protected function getBeginDate($html);
+    abstract protected function getBeginTime($html);
+    abstract protected function getTypeSport($html);
+    abstract protected function getCountry($html);
+    abstract protected function getChampionship($html);
+    abstract protected function getNameEvent($html);
+    abstract protected function getMarkets($html);
+    abstract protected function getBookmakers($html);
 
 }

@@ -4,6 +4,8 @@ namespace parsersPicksgrail;
 
 use parsersPicksgrail\boards\devbmbetscom\DevBmbetsComParser;
 
+set_time_limit(0);
+
 require_once __DIR__ . '/vendor/config.php';
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/boards/devbmbetscom/urls.php';
