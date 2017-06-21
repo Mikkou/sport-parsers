@@ -3,6 +3,7 @@
 namespace parsersPicksgrail\boards\devbmbetscom;
 
 use parsersPicksgrail\Parser;
+use parsersPicksgrail\helpers\DBHelper;
 
 class DevBmbetsComParser extends Parser
 {
@@ -24,14 +25,30 @@ class DevBmbetsComParser extends Parser
 
     public function getHeaders()
     {
+
         $headers = [
-            'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.104 Safari/537.36',
+            //не актуально стало 21.06
+            //'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            //'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
+            //'Connection:keep-alive',
+            //'Cache-Control:max-age=0',
+            //'Cookie:__cfduid=dc6a2b03ecf6fd1654d8e5dc4582544e01497892649; Language=en-US; __RequestVerificationToken=h-2Bj9CoWT0vX76BuUy1-it8M01IS5o9X6VSEoabW8ueRVa4WMEaQ1cTVY-GK6fbtaAVy1BpoBQpO3WeBHmAF1mqjT1EUK7SbSa6hRl2kko1; _hjIncludedInSample=1; gmt=0; cf_clearance=bfdebc0f61bb84437a4a9bee3dc34bc96eeec8aa-1498035783-3600; IsWelcome=1; _hjMinimizedPolls=144243; _ga=GA1.2.710389148.1497892658; _gid=GA1.2.894094897.1497892658',
+            //'Host:dev.bmbets.com',
+            //'Upgrade-Insecure-Requests:1',
+            //'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.104 Safari/537.36',
+
             'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'Connection:keep-alive',
+            //'Accept-Encoding:gzip, deflate',
             'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
-            'Cookie:__cfduid=da5ae61e755bd97072dccbe838ce141671497706408; cf_clearance=76b01ce3747722b81ae2d7d37f9ad636804f5a63-1497908313-3600; Language=en-US; __RequestVerificationToken=KiyFzjh7e9BtchUvAiEGK955mnDdMONFYFfswjqDtpaAjDyLbDq4KdedLnO0Vxj49L5FvSJnULMMwXfFmLjGmI20tk9b9LZYLk9y5Y3-Irs1; gmt=3; _hjIncludedInSample=1; _ga=GA1.2.634684937.1497706431; _gid=GA1.2.1059422375.1497706431',
+            'Cache-Control:max-age=0',
+            'Connection:keep-alive',
+            'Cookie:__cfduid=dc6a2b03ecf6fd1654d8e5dc4582544e01497892649; Language=en-US; __RequestVerificationToken=h-2Bj9CoWT0vX76BuUy1-it8M01IS5o9X6VSEoabW8ueRVa4WMEaQ1cTVY-GK6fbtaAVy1BpoBQpO3WeBHmAF1mqjT1EUK7SbSa6hRl2kko1; _hjIncludedInSample=1; gmt=0; cf_clearance=881c692d14c3be66e3311af0bef65348d72ddd0d-1498043911-3600; IsWelcome=1; _hjMinimizedPolls=144243; _ga=GA1.2.710389148.1497892658; _gid=GA1.2.894094897.1497892658',
             'Host:dev.bmbets.com',
             'Upgrade-Insecure-Requests:1',
+            'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
+
+
+
         ];
 
         return $headers;
@@ -39,7 +56,6 @@ class DevBmbetsComParser extends Parser
 
     public function getUrlsOnEvents($url, $forWhatDay)
     {
-
         $url = $this->createUrl($url, $forWhatDay);
 
         dump($url);
@@ -63,14 +79,14 @@ class DevBmbetsComParser extends Parser
 
             if (strpos($link, 'com/') !== false) {
 
-                $arrayEventsUrls[] = $link;
+                //преобразование html сущностей в нормальный текст
+                $arrayEventsUrls[] = html_entity_decode($link);
 
             }
 
         }
 
         return $arrayEventsUrls;
-
     }
 
     protected function createUrl($url, $forWhatDay)
@@ -134,11 +150,31 @@ class DevBmbetsComParser extends Parser
 
     protected function getCountry($html)
     {
+        $country['name'] = $this->getCountryName($html);
+
+        $country['css'] = $this->getCountryCss($html);
+
+        $resultArray['country'] = $country;
+
+        return $resultArray;
+    }
+
+    protected function getCountryCss($html)
+    {
+        $object = $this->getHtmlObject($html, 'ul.breadcrumb li a i.fa');
+
+        $name = trim(str_replace('fa ', '', $object[0]->attr['class']));
+
+        return $name;
+    }
+
+    protected function getCountryName($html)
+    {
         $object = $this->getHtmlObject($html, 'li a span.hidden-480');
 
-        $country['country'] = trim($object[1]->plaintext);
+        $name = html_entity_decode(trim($object[1]->plaintext));
 
-        return $country;
+        return $name;
     }
 
     protected function getChampionship($html)
@@ -192,7 +228,7 @@ class DevBmbetsComParser extends Parser
         //получение json со всеми рынками с html
         $dirtyJson = $this->getDirtyJsonMarkets($html);
 
-        $arrayWrongJson = explode('}]},{', $dirtyJson);
+        $arrayWrongJson = explode(']},{', $dirtyJson);
 
         $count = count($arrayWrongJson);
 
@@ -205,13 +241,8 @@ class DevBmbetsComParser extends Parser
 
             $wrongJson = $arrayWrongJson[$i];
 
-            //вначале добавляем скобку, кроме 1-ого элемента в массиве
-            if ($i !== 0) {$wrongJson = "{" . $wrongJson;}
-
-            //вконце добавляем скобки, крое последнего элемента в массиве
-            if ($i !== $count - 1) {$wrongJson = $wrongJson . "}]}";}
-
-            $correctJson = $wrongJson;
+            //слегка поправим json, чтобы был рабочий
+            $correctJson = $this->correctionJson($wrongJson, $count, $i);
 
             //переводим с json в читабельный вид
             $data = json_decode($correctJson);
@@ -232,6 +263,20 @@ class DevBmbetsComParser extends Parser
         $resultArrayMarkets['markets'] = $resultArray;
 
         return $resultArrayMarkets;
+    }
+
+    protected function correctionJson($wrongJson, $count, $i)
+    {
+        //для json, который оканчивается на пустой массив
+        if ($wrongJson{$count - 1} === "[") {$wrongJson = $wrongJson . "]}";}
+
+        //вначале добавляем скобку, кроме 1-ого элемента в массиве
+        if ($i !== 0) {$wrongJson = "{" . $wrongJson;}
+
+        //вконце добавляем скобки, крое последнего элемента в массиве
+        if ($i !== $count - 1) {$wrongJson = $wrongJson . "]}";}
+
+        return $wrongJson;
     }
 
     public function getBookmakers($html)
@@ -327,7 +372,50 @@ class DevBmbetsComParser extends Parser
         return $dirtyJson;
     }
 
-    ///* получение коэффициэнтов в онлайн режиме
+    public function putEventsInDataBase($events)
+    {
+        $count = count($events);
+
+        //запись в бд по-одному событию
+        for ($a = 0; $a < $count; $a++) {
+
+            $this->putBookmakers($events, $a);
+
+            $this->putCountry($events, $a);
+
+        }
+    }
+
+    public function putBookmakers($events, $indexEvent)
+    {
+        $count = count($events[$indexEvent]['bookmakers']);
+
+        for ($i = 0; $i < $count; $i++) {
+
+            $array = $events[$indexEvent]['bookmakers'][$i];
+
+            $this->dbHelper->query("INSERT INTO bookmaker2 (?#) VALUES (?a)", array_keys($array), array_values($array));
+
+        }
+    }
+
+    public function putCountry($events, $indexEvent)
+    {
+        $array = $events[$indexEvent]['country'];
+
+        $array["name"] .= 1;
+
+        //проверка на дубли
+        $result = $this->dbHelper->query("SELECT name, css FROM country2 WHERE name=(?s)", $array["name"]);
+
+        if (!$result) {
+
+            $this->dbHelper->query("INSERT INTO country2 (?#) VALUES (?a)", array_keys($array), array_values($array));
+
+        }
+    }
+
+    /* получение коэффициэнтов в онлайн режиме
     protected function getJson($eventId, $idBookmaker)
     {
 
@@ -353,7 +441,7 @@ class DevBmbetsComParser extends Parser
         return $result;
 
     }
-    //*/
+    */
 
     /*
     protected function getDefaultIdMarket($html)

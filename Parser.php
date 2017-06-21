@@ -20,7 +20,6 @@ abstract class Parser
 
     protected $urlOnEvent;
 
-    //TODO оптимизировать этот конструктор
     function __construct($urlOfCategory, $domain, $days, $config)
     {
         $this->urlOfCategory = $urlOfCategory;
@@ -45,12 +44,18 @@ abstract class Parser
         //цикл для кол-ва дней, за которое нужно распарсить
         for ($forWhatDay = 1; $forWhatDay <= $this->days; $forWhatDay++) {
 
+            /*
+             * Сначала соберем все событие в кучу с одной страницы
+             * и после начнем раскидывать их данные по таблицам в бд
+             * */
+
             $start = microtime(true);
 
             //получение ссылок на все события
             $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
 
             //dump($arrayUrls);
+            //die;
 
             echo "Parsing urls from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
 
@@ -59,10 +64,14 @@ abstract class Parser
             //парсим содержимое событий
             $events = $this->getDataOfEvents($arrayUrls);
 
+            dump($events);
+
             echo "Parsing event from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
 
-            //dump($events);
+            //ложим все данные в базу данных
+            $this->putEventsInDataBase($events);
 
+            die;
         }
 
         die;
@@ -74,36 +83,15 @@ abstract class Parser
         $resultArrayWithAllDataEvents = [];
 
         //распаршивание каждого события
-        foreach($arrayUrls as $parseUrl) {
+        //foreach($arrayUrls as $parseUrl) {
 
             $start = microtime(true);
 
             echo "Begin parse objects... \n";
 
-            //не загружается страница
-            $parseUrl = 'http://dev.bmbets.com/football/sweden/division-5/ifk-&#246;sterbymo-v-horn-hycklinge-if-1976803/';
-            //сделать преобразование в html сущность
-            //$parseUrl = 'http://dev.bmbets.com/football/sweden/division-5/ifk-&#246;sterbymo-v-horn-hycklinge-if-1976803/';
-            //рынки
-            //$parseUrl = 'http://dev.bmbets.com/football/korea-republic/k-league/ulsan-hyundai-v-jeju-united-1975696/';
-            //home-no-bet проверить
-            //$parseUrl = 'http://dev.bmbets.com/football/china-pr/fa-cup/shanghai-shenhua-v-beijing-guoan-1976760/#!/goal-line';
-            //рынки и букмейкеры
-            //$parseUrl = 'http://dev.bmbets.com/football/kazakhstan/kazakhstan-cup/kairat-almaty-v-ordabasy-1972615/';
+            //найти событие без ставок
 
-            //нет ставок
-            //http://prntscr.com/flrbv5
-            //$parseUrl = 'http://dev.bmbets.com/football/sweden/division-2-norra-svealand/eskilstuna-city-v-sundbybergs-ik-1968721/';
-            //$parseUrl = 'http://dev.bmbets.com/football/sweden/division-2-norrland/hudiksvall-v-harnosand-1977495/';
-
-            $w = chr(246);
-
-            dump("f" . $w . "s");
-
-            dump(chr(246));
-
-            dump(htmlspecialchars($parseUrl));
-            die;
+        $parseUrl = "http://dev.bmbets.com/football/australia/queensland-league-u20/moreton-bay-jets-u20-v-brisbane-roar-ii-u20-1979216/";
 
             //поулчение html страницы события
             $html = $this->getHtmlContentFromUrl($parseUrl);
@@ -142,12 +130,13 @@ abstract class Parser
             $arrayMergesData = array_merge($url, $beginDate, $beginTime, $typeSport, $country, $championship,
                 $nameEvent, $markets, $bookmakers);
 
-            dump($arrayMergesData);
+            //dump($arrayMergesData);
+            //die;
 
             $resultArrayWithAllDataEvents[] = $arrayMergesData;
 
             echo "Parsing one event was " . (microtime(true) - $start) . " sec.\n";
-        }
+        //}
 
         return $resultArrayWithAllDataEvents;
     }
@@ -170,12 +159,12 @@ abstract class Parser
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch, CURLOPT_HEADER, 0);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
             curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
             curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 25);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
             $html = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -199,9 +188,7 @@ abstract class Parser
                 return $html;
 
             }
-
         }
-
     }
 
     public function getHtmlObject($html, $selector) {
@@ -214,6 +201,7 @@ abstract class Parser
 
     }
 
+    //TODO вынести в трейты эти все методы
     abstract protected function getUrlsOnEvents($url, $forWhatDay);
     abstract protected function getCookies();
     abstract protected function getHeaders();
@@ -221,9 +209,14 @@ abstract class Parser
     abstract protected function getBeginTime($html);
     abstract protected function getTypeSport($html);
     abstract protected function getCountry($html);
+    abstract protected function getCountryCss($html);
+    abstract protected function getCountryName($html);
     abstract protected function getChampionship($html);
     abstract protected function getNameEvent($html);
     abstract protected function getMarkets($html);
     abstract protected function getBookmakers($html);
+    abstract protected function putEventsInDataBase($events);
+    abstract protected function putBookmakers($events, $indexEvent);
+    abstract protected function putCountry($events, $indexEvent);
 
 }
