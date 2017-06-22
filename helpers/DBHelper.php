@@ -22,12 +22,5 @@ class DBHelper
         return self::$db;
 
     }
-
-    /*
-    public function putBookmaker($id, $name)
-    {
-        $this->
-    }
-    */
 }
 

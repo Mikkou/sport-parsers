@@ -5,6 +5,8 @@ namespace parsersPicksgrail;
 use simple_html_dom;
 use parsersPicksgrail\helpers\ProxyHelper;
 use parsersPicksgrail\helpers\DBHelper;
+use cloudflare;
+use httpProxy;
 
 abstract class Parser
 {
@@ -64,7 +66,7 @@ abstract class Parser
             //парсим содержимое событий
             $events = $this->getDataOfEvents($arrayUrls);
 
-            dump($events);
+            //dump($events);
 
             echo "Parsing event from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
 
@@ -100,13 +102,10 @@ abstract class Parser
             $this->urlOnEvent = $parseUrl;
 
             //ссылка на событие
-            $url['url'] = $parseUrl;
+            $url['link'] = $parseUrl;
 
-            //получение даты начала события
-            $beginDate = $this->getBeginDate($html);
-
-            //получение времени начала события
-            $beginTime = $this->getBeginTime($html);
+            //получение времени
+            $time = $this->getTime($html);
 
             //получение вида спорта
             $typeSport = $this->getTypeSport($html);
@@ -127,8 +126,8 @@ abstract class Parser
             $bookmakers = $this->getBookmakers($html);
 
             //объединение всех данных
-            $arrayMergesData = array_merge($url, $beginDate, $beginTime, $typeSport, $country, $championship,
-                $nameEvent, $markets, $bookmakers);
+            $arrayMergesData = array_merge($url, $time, $typeSport, $country, $championship, $nameEvent, $markets,
+                $bookmakers);
 
             //dump($arrayMergesData);
             //die;
@@ -146,6 +145,35 @@ abstract class Parser
         $cookies = $this->getCookies();
         $headers = $this->getHeaders();
 
+
+        /* решение обхода защиты сайта
+        $httpProxy   = new httpProxy();
+        $httpProxyUA = 'proxyFactory';
+        $requestLink = $parseUrl;
+        $requestPage = json_decode($httpProxy->performRequest($requestLink));
+        // if page is protected by cloudflare
+        if($requestPage->status->http_code == 503) {
+            // Make this the same user agent you use for other cURL requests in your app
+            cloudflare::useUserAgent($httpProxyUA);
+
+            // attempt to get clearance cookie
+            if($clearanceCookie = cloudflare::bypass($requestLink)) {
+                // use clearance cookie to bypass page
+                $requestPage = $httpProxy->performRequest($requestLink, 'GET', null, array(
+                    'cookies' => $clearanceCookie
+                ));
+                // return real page content for site
+                $requestPage = json_decode($requestPage);
+                echo $requestPage->content;
+            } else {
+                // could not fetch clearance cookie
+                echo 'Could not fetch CloudFlare clearance cookie (most likely due to excessive requests)';
+            }
+        }
+
+        die;
+        */
+
         sleep(1);
 
         if (TEST_MOD === 0 && !empty($this->proxyHelper)) {
@@ -157,18 +185,21 @@ abstract class Parser
             $ch = curl_init($parseUrl);
 
             curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($ch, CURLOPT_HEADER, 0);
+            curl_setopt($ch, CURLOPT_HEADER, 1);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
             curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
             curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 40);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
 
             $html = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
+
+            dump($html);
+            die;
 
             echo "Response from server - " . $httpCode . ".\n";
 
@@ -201,10 +232,11 @@ abstract class Parser
 
     }
 
-    //TODO вынести в трейты эти все методы
+    //TODO вынести в трейты эти все методы или что-нибудь с ними сделать
     abstract protected function getUrlsOnEvents($url, $forWhatDay);
     abstract protected function getCookies();
     abstract protected function getHeaders();
+    abstract protected function getTime($html);
     abstract protected function getBeginDate($html);
     abstract protected function getBeginTime($html);
     abstract protected function getTypeSport($html);
@@ -216,7 +248,12 @@ abstract class Parser
     abstract protected function getMarkets($html);
     abstract protected function getBookmakers($html);
     abstract protected function putEventsInDataBase($events);
-    abstract protected function putBookmakers($events, $indexEvent);
-    abstract protected function putCountry($events, $indexEvent);
+    abstract protected function putInBookmakers($events, $indexEvent);
+    abstract protected function putInCountry($events, $indexEvent);
+    abstract protected function putInEvent($events, $indexEvent);
+    abstract protected function putInMarket($events, $indexEvent);
+    abstract protected function putInSport($events, $indexEvent);
+    abstract protected function putInSportCountry($events, $indexEvent);
+    abstract protected function putInTournament($events, $indexEvent);
 
 }

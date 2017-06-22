@@ -17,5 +17,7 @@ require_once MAIN_DIR . '/boards/devbmbetscom/DevBmbetsComParser.php';
 require_once MAIN_DIR . '/vendor/simplehtmldom/Simple_html_dom.php';
 require_once MAIN_DIR . '/vendor/DbSimple-master/lib/config.php';
 require_once MAIN_DIR . '/vendor/DbSimple-master/lib/DbSimple/Generic.php';
+require_once MAIN_DIR . '/vendor/cloudflare-bypass/libraries/httpProxyClass.php';
+require_once MAIN_DIR . '/vendor/cloudflare-bypass/libraries/cloudflareClass.php';
 
 return ComposerAutoloaderInit2bda76166076047e03d78b342a421bab::getLoader();
