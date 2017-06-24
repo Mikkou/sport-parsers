@@ -1,7 +1,7 @@
 <?php
 
 //настрйоки для продакш
-define('MAIN_DIR', '/var/www/picksgrail/data/www'); //main directory
+define('MAIN_DIR', '/var/www/picksgrail/data/www/parsersPicksgrail'); //main directory
 define('HOST', 'localhost'); //server
 define('USER', 'picksgrail_admin'); //user
 define('PASSWORD', '1111'); //password
