@@ -54,6 +54,8 @@ abstract class Parser
             //получение ссылок на все события
             $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
 
+            dump($arrayUrls);
+
             echo "Parsing urls from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
 
             $start = microtime(true);
@@ -81,6 +83,8 @@ abstract class Parser
 
             //поулчение html страницы события
             $html = $this->getHtmlContentFromUrl($parseUrl);
+
+            //$parseUrl = 'http://dev.bmbets.com/football/china-pr/china-league/baoding-yingli-yitong-v-dalian-yifang-1979749/';
 
             //выносим ссылку на события для использования в производных классах
             $this->urlOnEvent = $parseUrl;
@@ -115,6 +119,11 @@ abstract class Parser
 
             echo "Parsing one event was " . (microtime(true) - $start) . " sec.\n";
 
+            dump($arrayMergesData);
+            die;
+
+            if ($parseUrl === 'http://dev.bmbets.com/football/norway/4th-division/vestsiden-askoy-il-v-austevoll-ik-1980390/') die;
+
             $resultArrayWithAllDataEvents[] = $arrayMergesData;
         }
 
@@ -128,7 +137,7 @@ abstract class Parser
 
         sleep(1);
 
-        if (TEST_MOD === 0 && !empty($this->proxyHelper)) {
+        if (TEST_MOD === 1 && !empty($this->proxyHelper)) {
 
             return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
 
