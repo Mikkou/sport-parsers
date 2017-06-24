@@ -5,8 +5,6 @@ namespace parsersPicksgrail;
 use simple_html_dom;
 use parsersPicksgrail\helpers\ProxyHelper;
 use parsersPicksgrail\helpers\DBHelper;
-use cloudflare;
-use httpProxy;
 
 abstract class Parser
 {
@@ -56,9 +54,6 @@ abstract class Parser
             //получение ссылок на все события
             $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
 
-            //dump($arrayUrls);
-            //die;
-
             echo "Parsing urls from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
 
             $start = microtime(true);
@@ -66,18 +61,11 @@ abstract class Parser
             //парсим содержимое событий
             $events = $this->getDataOfEvents($arrayUrls);
 
-            //dump($events);
-
             echo "Parsing event from 1 page of category was " . (microtime(true) - $start) . " sec.\n";
 
             //ложим все данные в базу данных
             $this->putEventsInDataBase($events);
-
-            die;
         }
-
-        die;
-
     }
 
     public function getDataOfEvents($arrayUrls)
@@ -85,15 +73,11 @@ abstract class Parser
         $resultArrayWithAllDataEvents = [];
 
         //распаршивание каждого события
-        //foreach($arrayUrls as $parseUrl) {
+        foreach($arrayUrls as $parseUrl) {
 
             $start = microtime(true);
 
             echo "Begin parse objects... \n";
-
-            //найти событие без ставок
-
-        $parseUrl = "http://dev.bmbets.com/football/australia/queensland-league-u20/moreton-bay-jets-u20-v-brisbane-roar-ii-u20-1979216/";
 
             //поулчение html страницы события
             $html = $this->getHtmlContentFromUrl($parseUrl);
@@ -129,13 +113,10 @@ abstract class Parser
             $arrayMergesData = array_merge($url, $time, $typeSport, $country, $championship, $nameEvent, $markets,
                 $bookmakers);
 
-            //dump($arrayMergesData);
-            //die;
+            echo "Parsing one event was " . (microtime(true) - $start) . " sec.\n";
 
             $resultArrayWithAllDataEvents[] = $arrayMergesData;
-
-            echo "Parsing one event was " . (microtime(true) - $start) . " sec.\n";
-        //}
+        }
 
         return $resultArrayWithAllDataEvents;
     }
@@ -144,35 +125,6 @@ abstract class Parser
     {
         $cookies = $this->getCookies();
         $headers = $this->getHeaders();
-
-
-        /* решение обхода защиты сайта
-        $httpProxy   = new httpProxy();
-        $httpProxyUA = 'proxyFactory';
-        $requestLink = $parseUrl;
-        $requestPage = json_decode($httpProxy->performRequest($requestLink));
-        // if page is protected by cloudflare
-        if($requestPage->status->http_code == 503) {
-            // Make this the same user agent you use for other cURL requests in your app
-            cloudflare::useUserAgent($httpProxyUA);
-
-            // attempt to get clearance cookie
-            if($clearanceCookie = cloudflare::bypass($requestLink)) {
-                // use clearance cookie to bypass page
-                $requestPage = $httpProxy->performRequest($requestLink, 'GET', null, array(
-                    'cookies' => $clearanceCookie
-                ));
-                // return real page content for site
-                $requestPage = json_decode($requestPage);
-                echo $requestPage->content;
-            } else {
-                // could not fetch clearance cookie
-                echo 'Could not fetch CloudFlare clearance cookie (most likely due to excessive requests)';
-            }
-        }
-
-        die;
-        */
 
         sleep(1);
 
@@ -191,26 +143,25 @@ abstract class Parser
             curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
             curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 40);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
             $html = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            dump($html);
-            die;
-
             echo "Response from server - " . $httpCode . ".\n";
 
             //формирование ответа
             if ($httpCode === 301 || $httpCode === 302) {
+            //редиректы
 
                 echo "A redirect has occurred!\n";
 
                 return false;
 
             } elseif ($httpCode === 404) {
+             //страницы не существует
 
                 return false;
 

@@ -12,7 +12,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/boards/devbmbetscom/urls.php';
 
 $domain = "dev.bmbets.com";
-$days = 3;
+$days = 1;
 
 //TODO придумать что-нибудь с подчеркиваемыми переменными
 foreach($urls as $urlOfCategory) {

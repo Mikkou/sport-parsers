@@ -4,6 +4,8 @@ namespace parsersPicksgrail\boards\devbmbetscom;
 
 use parsersPicksgrail\Parser;
 use parsersPicksgrail\helpers\DBHelper;
+use cloudflare;
+use httpProxy;
 
 class DevBmbetsComParser extends Parser
 {
@@ -42,7 +44,7 @@ class DevBmbetsComParser extends Parser
             'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
             'Cache-Control:max-age=0',
             'Connection:keep-alive',
-            'Cookie:__cfduid=dc6a2b03ecf6fd1654d8e5dc4582544e01497892649; Language=en-US; __RequestVerificationToken=h-2Bj9CoWT0vX76BuUy1-it8M01IS5o9X6VSEoabW8ueRVa4WMEaQ1cTVY-GK6fbtaAVy1BpoBQpO3WeBHmAF1mqjT1EUK7SbSa6hRl2kko1; _hjIncludedInSample=1; gmt=0; cf_clearance=54183896d80848d2b19e1c0d422e2e782fabf0fb1-1498140481-3600; IsWelcome=1; _hjMinimizedPolls=144243; _ga=GA1.2.710389148.1497892658; _gid=GA1.2.894094897.1497892658',
+            'Cookie: cf_clearance=d0b97da10f9fc975140910664842334d99d82e47-1498299233-3600;__cfduid=d4d5c80180606103f2aee8510240666c91498298788; Language=en-US; __RequestVerificationToken=h-2Bj9CoWT0vX76BuUy1-it8M01IS5o9X6VSEoabW8ueRVa4WMEaQ1cTVY-GK6fbtaAVy1BpoBQpO3WeBHmAF1mqjT1EUK7SbSa6hRl2kko1; _hjIncludedInSample=1; gmt=0; IsWelcome=1; _hjMinimizedPolls=144243; _ga=GA1.2.710389148.1497892658; _gid=GA1.2.894094897.1497892658',
             'Host:dev.bmbets.com',
             'Upgrade-Insecure-Requests:1',
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
@@ -56,8 +58,6 @@ class DevBmbetsComParser extends Parser
     public function getUrlsOnEvents($url, $forWhatDay)
     {
         $url = $this->createUrl($url, $forWhatDay);
-
-        dump($url);
 
         $html = $this->getHtmlContentFromUrl($url);
 
@@ -572,6 +572,34 @@ class DevBmbetsComParser extends Parser
 
             $this->dbHelper->query("INSERT INTO country2 (?#) VALUES (?a)", array_keys($array), array_values($array));
 
+        }
+    }
+
+    public function getHtmlContentFromUrl($parseUrl)
+    {
+        $httpProxy   = new httpProxy();
+        $httpProxyUA = 'proxyFactory';
+        //$httpProxyUA = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36';
+        $requestLink = $parseUrl;
+        $requestPage = json_decode($httpProxy->performRequest($requestLink));
+        // if page is protected by cloudflare
+        if($requestPage->status->http_code == 503) {
+            // Make this the same user agent you use for other cURL requests in your app
+            cloudflare::useUserAgent($httpProxyUA);
+
+            // attempt to get clearance cookie
+            if($clearanceCookie = cloudflare::bypass($requestLink)) {
+                // use clearance cookie to bypass page
+                $requestPage = $httpProxy->performRequest($requestLink, 'GET', null, array(
+                    'cookies' => $clearanceCookie
+                ));
+                // return real page content for site
+                $requestPage = json_decode($requestPage);
+                return $requestPage->content;
+            } else {
+                // could not fetch clearance cookie
+                return false;
+            }
         }
     }
 
