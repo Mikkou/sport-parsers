@@ -1,5 +1,8 @@
 <?php
 
+
+
+//локальные данные
 define('MAIN_DIR', 'W:/domains/parsersPicksgrail'); //main directory
 define('HOST', 'localhost'); //server
 define('USER', 'picksgrail_admin'); //user
@@ -12,7 +15,5 @@ $config = [
 
     //data for proxy
     "proxy_file" => "proxies.txt",
-    "proxy_login" => "",
-    "proxy_pass" => "",
 
 ];
