@@ -6,7 +6,6 @@ use DbSimple_Generic;
 
 class DBHelper
 {
-
     protected static $db;
 
     protected static $table;

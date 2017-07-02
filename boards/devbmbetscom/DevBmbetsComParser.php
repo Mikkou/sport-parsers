@@ -3,7 +3,6 @@
 namespace parsersPicksgrail\boards\devbmbetscom;
 
 use parsersPicksgrail\Parser;
-use parsersPicksgrail\helpers\DBHelper;
 use cloudflare;
 use httpProxy;
 
@@ -11,11 +10,9 @@ class DevBmbetsComParser extends Parser
 {
     protected $newUrlOfCategory;
 
-    protected $key;
-
-    function __construct($urlOfCategory, $domain, $days, $config)
+    function __construct($urlOfCategory, $domain, $config, $keyForOptions)
     {
-        parent::__construct($urlOfCategory, $domain, $days, $config);
+        parent::__construct($urlOfCategory, $domain, $config, $keyForOptions);
     }
 
     public function getCookies()
@@ -29,7 +26,6 @@ class DevBmbetsComParser extends Parser
 
     public function getHeaders()
     {
-
         $headers = [
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
         ];
@@ -39,7 +35,10 @@ class DevBmbetsComParser extends Parser
 
     public function getUrlsOnEvents($url, $forWhatDay)
     {
+        //создаем новый урл исключительно для нужного дня
         $url = $this->createUrl($url, $forWhatDay);
+
+        echo $url . "\n";
 
         $html = $this->getHtmlContentFromUrl($url);
 
@@ -72,6 +71,7 @@ class DevBmbetsComParser extends Parser
 
     protected function createUrl($url, $forWhatDay)
     {
+        //корректируем урл дня категории, который будем парсить
         if ($forWhatDay === 1) {
 
             $url .= "/" . date('Ymd');
@@ -225,7 +225,6 @@ class DevBmbetsComParser extends Parser
 
     public function getMarkets($html)
     {
-        //костыль:( TODO сделать регулярку
         //получение json со всеми рынками с html
         $dirtyJson = $this->getDirtyJsonMarkets($html);
 
@@ -288,7 +287,6 @@ class DevBmbetsComParser extends Parser
 
     public function getBookmakers($html)
     {
-        //костыль:( TODO сделать регулярку
         //получение json со всеми букмейкерами с html
         $json = $this->getJsonBookmakers($html);
 
@@ -358,6 +356,7 @@ class DevBmbetsComParser extends Parser
 
     protected function getDirtyJsonMarkets($html)
     {
+        //получение необходимого json с исходного html
         $array1 = explode('$("#typetabs").tabcontrol({', $html);
 
         $array2 = explode('});', $array1[1]);
@@ -378,31 +377,6 @@ class DevBmbetsComParser extends Parser
         return $dirtyJson;
     }
 
-    public function putEventsInDataBase($events)
-    {
-        $count = count($events);
-
-        //запись в бд по-одному событию
-        for ($indexEvent = 0; $indexEvent < $count; $indexEvent++) {
-
-            //конторы
-            $this->putInBookmakers($events, $indexEvent);
-            //страны
-            $this->putInCountry($events, $indexEvent);
-            //само событие
-            $this->putInEvent($events, $indexEvent);
-            //рынки
-            $this->putInMarket($events, $indexEvent);
-            //данные вида спорта
-            $this->putInSport($events, $indexEvent);
-            //
-            $this->putInSportCountry($events, $indexEvent);
-            //турниры
-            $this->putInTournament($events, $indexEvent);
-
-        }
-    }
-
     protected function putInTournament($events, $indexEvent)
     {
         //достаем имя турнира
@@ -413,6 +387,11 @@ class DevBmbetsComParser extends Parser
 
         //собираем нужную часть ссылки
         $putArray["link"] = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
+
+        //получение айди-индекса с таблицы sport_county2 для столбца "id_sc"
+        $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
+        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country2 WHERE link=(?s)", $link);
+        $putArray["id_sc"] = $arrayId[0]["id"];
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM tournament2 WHERE link=(?s)", $putArray["link"]);
@@ -506,17 +485,22 @@ class DevBmbetsComParser extends Parser
         }
     }
 
-    protected function putInEventMarket($events, $indexEvent)
-    {
-    }
-
     protected function putInEvent($events, $indexEvent)
     {
         //объединяем все требуещиеся данные в одно место
-        $putArray["id_tournament"] = $events[$indexEvent]["id_tournament"];
         $putArray["date_event"] = $events[$indexEvent]["date_event"];
         $putArray["name"] = $events[$indexEvent]["name"];
         $putArray["link"] = $events[$indexEvent]["link"];
+
+        //>>>получение ссылки на турнир и запрос его айди с таблицы tournament2
+        //получаем часть ссылки на турнир
+        $arrayPartsLink = explode('/', $events[$indexEvent]["link"]);
+        //собираем нужную часть ссылки
+        $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
+        //запрашиваем
+        $arrayId = $this->dbHelper->query("SELECT id FROM tournament2 WHERE link=(?s)", $link);
+        $putArray["id_tournament"] = $arrayId[0]["id"];
+        //<<<
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM event2 WHERE date_event=(?s) AND link=(?s)",
@@ -524,8 +508,12 @@ class DevBmbetsComParser extends Parser
 
         //добавление\обновление данных
         if ($result) {
-            $this->dbHelper->query("UPDATE event2 SET ?a", $putArray);
+
+            $this->dbHelper->query("UPDATE event2 SET date_event=(?s) AND name=(?s) WHERE link=(?s)",
+                $putArray["date_event"], $putArray["name"], $putArray["link"]);
+
         } else {
+
             $this->dbHelper->query("INSERT INTO event2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         }
     }
@@ -563,124 +551,73 @@ class DevBmbetsComParser extends Parser
         $httpProxyUA = 'proxyFactory';
         $requestLink = $parseUrl;
 
-        $arrayPartsProxy = $this->proxyHelper->getProxy($this->getCookies(), $this->getHeaders(), '');
-        dump($arrayPartsProxy);
-        die;
+        //берем рабочий прокси
+        $proxy = $this->proxyHelper->getProxy($this->getCookies(), $this->getHeaders(), '');
 
-        //проверка на наличие ключа-куков
-        if ($this->key) {
+        // Make this the same user agent you use for other cURL requests in your app
+        cloudflare::useUserAgent($httpProxyUA);
 
-            $requestPage = json_decode($httpProxy->performRequest($requestLink, 'GET', null, array(
-                'cookies' => $this->key
-            )));
+        // attempt to get clearance cookie
+        if($clearanceCookie = cloudflare::bypass($requestLink, $proxy)) {
 
-        } else {
-
-            $requestPage = json_decode($httpProxy->performRequest($requestLink));
-
-        }
-
-        // if page is protected by cloudflare
-        if($requestPage->status->http_code == 503) {
-            // Make this the same user agent you use for other cURL requests in your app
-            cloudflare::useUserAgent($httpProxyUA);
-
-            // attempt to get clearance cookie
-            if($clearanceCookie = cloudflare::bypass($requestLink)) {
-
-                //сохраняем куки для прохождения защиты
-                $this->key = $clearanceCookie;
-
-                // use clearance cookie to bypass page
-                $requestPage = $httpProxy->performRequest($requestLink, 'GET', null, array(
-                    'cookies' => $clearanceCookie
-                ));
-                // return real page content for site
-                $requestPage = json_decode($requestPage);
-                return $requestPage->content;
-            } else {
-                // could not fetch clearance cookie
-                return false;
-            }
-        } else {
-            //вовзращаем контент
+            // use clearance cookie to bypass page
+            $requestPage = $httpProxy->performRequest($requestLink, 'GET', null, array(
+                'cookies' => $clearanceCookie . "gmt=" . $this->getTimeZone() . ";"
+            ), $proxy);
+            // return real page content for site
+            $requestPage = json_decode($requestPage);
             return $requestPage->content;
+        } else {
+            // could not fetch clearance cookie
+            return false;
         }
     }
 
-    /* получение коэффициэнтов в онлайн режиме
-    protected function getJson($eventId, $idBookmaker)
+    protected function checkEvent($html, $arrayMergesData)
     {
+        //не ложить в бд союытие, если еще нет ставок, или пустое значнеие вида спорта
+        if (empty($arrayMergesData["type_sport"]) || strpos($html, 'No betting markets on this game.') !== false) {
 
-        $cookies = $this->getCookies();
+            $arrayMergesData["ignore_event"] = 1;
 
-        $headers = $this->getHeaders();
+        }
 
-        $data = [
-            "eId" => $eventId,
-            "bId" => $idBookmaker,
-        ];
-
-        $ch = curl_init('http://dev.bmbets.com/oddsdata');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
-        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-
-        $result = curl_exec($ch);
-
-        return $result;
-
+        return $arrayMergesData;
     }
-    */
 
-    /*
-    protected function getDefaultIdMarket($html)
+    protected function putInEventMarkets($events, $indexEvent)
     {
+        //получаем айдишник события с таблицы, где они хранятся
+        $idEvent = $this->dbHelper->query("SELECT id FROM event2 WHERE link=" . "'" . $events[$indexEvent]["link"] . "'" . " ");
 
-        //TODO убрать это в отдельный класс для хранения информации
-        $arrayKeys = [
+        //берем все рынки события
+        $arrayMarkets = $events[$indexEvent]["markets"];
 
-            3 => "Football",
-            53 => "Ice Hockey",
-            5 => "Tennis",
-            88 => "Basketball",
-            114 => "Volleyball",
-            260 => "Handball",
-            109 => "Baseball",
-            92 => "Boxing",
-            323 => "Field hockey",
-            122 => "Beach Volleyball",
-            129 => "Rugby Union",
-            0 => "Snooker",//нет событий!! Нужно отслеживать
-            233 => "Amer. Football",
-            141 => "Futsal",
-            144 => "Chess",
-            134 => "Table Tennis",
-            197 => "Aussie Rules",
-            125 => "Cricket",
-            153 => "Badminton",
-            0 => "Floorball",//нет событий!! Нужно отслеживать
-            0 => "Combat sports",//нет событий!! Нужно отслеживать
-            172 => "Lacrosse",
-            0 => "Bowls",//нет событий!! Нужно отслеживать
-            112 => "Rugby League",
-            410 => "E Sports",
-            0 => "Horse Racing",//нет событий!! Нужно отслеживать
-            1610 => "Softball",
-            1742 => "Netball",
+        //считаем их
+        $countMarkets = count($arrayMarkets);
 
-        ];
+        //проходимся по всем рынкам
+        for ($i = 0; $i < $countMarkets; $i++) {
 
-        $type = $this->getTypeSport($html);
+            //считаем кол-во таймаутов
+            $countPeriods = count($arrayMarkets[$i]["time_outs"]);
 
-        $resultKey = array_search($type['type_sport'], $arrayKeys);
+            //проходимся по всем таймаутам
+            for ($u = 0; $u < $countPeriods; $u++) {
 
-        return $resultKey;
+                //формирование массива для записи в бд
+                $putArray["id_event"] = $idEvent[0]["id"];
+                $putArray["id_market"] = $arrayMarkets[$i]["time_outs"][$u]["time_out_id"];
 
+                //проверка на дубли
+                $result = $this->dbHelper->query("SELECT * FROM event_market2 WHERE `id_event`=(?s) AND `id_market`=(?s)",
+                    $putArray["id_event"], $putArray["id_market"]);
+
+                if (!$result) {
+                    //записываем все в бд
+                    $this->dbHelper->query("INSERT INTO event_market2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+                }
+            }
+        }
     }
-    */
-
 }

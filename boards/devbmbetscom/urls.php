@@ -1,8 +1,8 @@
 <?php
 
 $urls = [
+
     "http://dev.bmbets.com/matches/football",
-    /*
     "http://dev.bmbets.com/matches/ice-hockey",
     "http://dev.bmbets.com/matches/tennis",
     "http://dev.bmbets.com/matches/basketball",
@@ -38,5 +38,5 @@ $urls = [
     "http://dev.bmbets.com/matches/sumo",
     "http://dev.bmbets.com/matches/netball",
     "http://dev.bmbets.com/matches/squash",
-    */
+
 ];

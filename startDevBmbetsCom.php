@@ -12,18 +12,24 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/boards/devbmbetscom/urls.php';
 
 $domain = "dev.bmbets.com";
-$days = 1;
+$keysForOptions = [
+    //ключ для получения с бд кол-ва дней
+    "days" => "daysDevBmbetsCom",
+    //ключ для получения с бд временной зоны
+    "timeZone" => "timeZoneDevBmbetsCom"
+];
 
-//TODO придумать что-нибудь с подчеркиваемыми переменными
 foreach($urls as $urlOfCategory) {
 
+    //создаем объект класса доски
     $parser = new DevBmbetsComParser(
         $urlOfCategory,
         $domain,
-        $days,
-        $config
+        $config,
+        $keysForOptions
     );
 
+    //запускаем парсинг
     $parser->start();
 
 }
