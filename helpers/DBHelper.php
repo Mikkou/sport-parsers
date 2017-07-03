@@ -6,7 +6,7 @@ use DbSimple_Generic;
 
 class DBHelper
 {
-    protected static $db;
+    protected static $dbInstance;
 
     protected static $table;
 
@@ -14,12 +14,13 @@ class DBHelper
     {
         self::$table = $table;
 
-        if (self::$db === null) {
-            self::$db = DbSimple_Generic::connect('mysql://' . USER . ':' . PASSWORD . '@' . HOST . '/' . NAME_BD . '');
+        if (self::$dbInstance === null) {
+
+            self::$dbInstance = DbSimple_Generic::connect('mysql://' . USER . ':' . PASSWORD . '@' . HOST . '/' . NAME_BD . '');
+
         }
 
-        return self::$db;
-
+        return self::$dbInstance;
     }
 }
 

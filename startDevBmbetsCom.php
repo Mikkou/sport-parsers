@@ -19,6 +19,8 @@ $keysForOptions = [
     "timeZone" => "timeZoneDevBmbetsCom"
 ];
 
+$DBHelper = helpers\DBHelper::getInstance($domain);
+
 foreach($urls as $urlOfCategory) {
 
     //создаем объект класса доски
@@ -26,7 +28,8 @@ foreach($urls as $urlOfCategory) {
         $urlOfCategory,
         $domain,
         $config,
-        $keysForOptions
+        $keysForOptions,
+        $DBHelper
     );
 
     //запускаем парсинг

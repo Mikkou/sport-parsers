@@ -22,7 +22,9 @@ abstract class Parser
 
     protected $parsedAllEvents = 0;
 
-    function __construct($urlOfCategory, $domain, $config, $keysForOptions)
+    protected $dbHelper;
+
+    function __construct($urlOfCategory, $domain, $config, $keysForOptions, $DBHelper)
     {
         $this->urlOfCategory = $urlOfCategory;
 
@@ -36,14 +38,15 @@ abstract class Parser
 
         $this->proxyHelper = new ProxyHelper($config, $this->domain);
 
-        $dbHelper = new DBHelper;
-        $this->dbHelper = $dbHelper::getInstance($domain);
+        $this->dbHelper = $DBHelper;
     }
 
     public function start()
     {
+        $days = $this->getDays();
+
         //цикл для кол-ва дней, за которое нужно распарсить
-        for ($forWhatDay = 1; $forWhatDay <= $this->getDays(); $forWhatDay++) {
+        for ($forWhatDay = 1; $forWhatDay <= $days; $forWhatDay++) {
 
             /*
              * Сначала соберем все событие в кучу с одной страницы
@@ -228,7 +231,7 @@ abstract class Parser
         return $object;
     }
 
-    private function getDays()
+    public function getDays()
     {
         //получение количества дней
         $key = $this->dbHelper->query("SELECT `value` FROM options WHERE `key` = " . "'" . $this->keysForOptions["days"]

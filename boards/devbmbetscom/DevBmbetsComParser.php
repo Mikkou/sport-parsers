@@ -10,9 +10,9 @@ class DevBmbetsComParser extends Parser
 {
     protected $newUrlOfCategory;
 
-    function __construct($urlOfCategory, $domain, $config, $keyForOptions)
+    function __construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper)
     {
-        parent::__construct($urlOfCategory, $domain, $config, $keyForOptions);
+        parent::__construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper);
     }
 
     public function getCookies()

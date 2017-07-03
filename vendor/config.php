@@ -5,7 +5,7 @@ define('MAIN_DIR', '/var/www/picksgrail/data/www/parsersPicksgrail'); //main dir
 define('HOST', 'localhost'); //server
 define('USER', 'picksgrail_admin'); //user
 define('PASSWORD', '3V1x6V7b'); //password
-define('NAME_BD', 'picksgrail');//base
+define('NAME_BD', 'picksgrail_base');//base
 define('TEST_MOD', '0');//debug status
 
 /*
