@@ -74,7 +74,7 @@ abstract class Parser
             //ложим все данные в базу данных
             $this->putEventsInDataBase($events);
 
-            echo "Put events in database " . (microtime(true) - $start) . " sec.\n";
+            echo "Put events in database " . round((microtime(true) - $start), 2) . " sec.\n";
 
             echo "Parsed " . count($events) . " objects \n";
         }
