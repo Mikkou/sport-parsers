@@ -547,35 +547,69 @@ class DevBmbetsComParser extends Parser
 
     public function getHtmlContentFromUrl($parseUrl)
     {
+        // parameters for cloudflare class
         $httpProxy   = new httpProxy();
         $httpProxyUA = 'proxyFactory';
         $requestLink = $parseUrl;
 
-        //берем рабочий прокси
-        $proxy = $this->proxyHelper->getProxy($this->getCookies(), $this->getHeaders(), '');
+        $attempts = $this->proxyHelper->getAttempts();
 
-        // Make this the same user agent you use for other cURL requests in your app
-        cloudflare::useUserAgent($httpProxyUA);
+        // here we try to get the html with work proxy
+        for ($i = 0; $i < $attempts; $i++) {
 
-        // attempt to get clearance cookie
-        if($clearanceCookie = cloudflare::bypass($requestLink, $proxy)) {
+            // get random proxy from list
+            $proxy = $this->proxyHelper->getOneProxyFromList();
+
+            // Make this the same user agent you use for other cURL requests in your app
+            cloudflare::useUserAgent($httpProxyUA);
+
+            $clearanceCookie = cloudflare::bypass($requestLink, $proxy);
 
             // use clearance cookie to bypass page
-            $requestPage = $httpProxy->performRequest($requestLink, 'GET', null, array(
-                'cookies' => $clearanceCookie . "gmt=" . $this->getTimeZone() . ";"
-            ), $proxy);
+            $requestPage = $httpProxy->performRequest($requestLink, 'GET', null,
+                ['cookies' => $clearanceCookie . "gmt=" . $this->getTimeZone() . ";"], $proxy);
+
             // return real page content for site
             $requestPage = json_decode($requestPage);
-            return $requestPage->content;
-        } else {
-            // could not fetch clearance cookie
-            return false;
+
+            //return html if good responce
+            if ($requestPage->status->http_code !== 0) {
+
+                return $requestPage->content;
+
+            }
+
+            // if in list all proxies don't work, replace on new
+            if ($i === 9) {
+
+                echo "refresh proxy list \n";
+
+                // get new proxies
+                $arrayNewProxy = file_get_contents($this->config["proxy_path_in_service"]);
+
+                // if all proxies don't work
+                if (!$arrayNewProxy) { break; }
+
+                // rewrite in file
+                $f = fopen($this->config['proxy_file'],'w');
+                fwrite($f, $arrayNewProxy);
+                fclose($f);
+
+                // begin cycle first
+                $i = 0;
+
+            }
         }
+
+        echo "haven't work proxy in the service!\n";
+
+        return false;
+
     }
 
     protected function checkEvent($html, $arrayMergesData)
     {
-        //не ложить в бд союытие, если еще нет ставок, или пустое значнеие вида спорта
+        // don't put event in database, if don't have forecast, or empty value type sport
         if (empty($arrayMergesData["type_sport"]) || strpos($html, 'No betting markets on this game.') !== false) {
 
             $arrayMergesData["ignore_event"] = 1;
