@@ -502,20 +502,12 @@ class DevBmbetsComParser extends Parser
         $putArray["id_tournament"] = $arrayId[0]["id"];
         //<<<
 
-        //проверка на дубли
-        $result = $this->dbHelper->query("SELECT * FROM event2 WHERE date_event=(?s) AND link=(?s)",
-            $putArray["date_event"], $putArray["link"]);
+        //удаление старых событий
+        $this->dbHelper->query("DELETE FROM event2 WHERE `link`=(?s)", $putArray["link"]);
 
-        //добавление\обновление данных
-        if ($result) {
+        //добавление новых
+        $this->dbHelper->query("INSERT INTO event2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
 
-            $this->dbHelper->query("UPDATE event2 SET date_event=(?s) AND name=(?s) WHERE link=(?s)",
-                $putArray["date_event"], $putArray["name"], $putArray["link"]);
-
-        } else {
-
-            $this->dbHelper->query("INSERT INTO event2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-        }
     }
 
     protected function putInBookmakers($events, $indexEvent)
