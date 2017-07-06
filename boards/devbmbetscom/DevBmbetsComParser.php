@@ -573,7 +573,7 @@ class DevBmbetsComParser extends Parser
             $requestPage = json_decode($requestPage);
 
             //return html if good responce
-            if ($requestPage->status->http_code !== 0) {
+            if ($requestPage->status->http_code === 200) {
 
                 return $requestPage->content;
 
