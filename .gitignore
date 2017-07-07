@@ -1,4 +1,4 @@
 
 \.idea/
 
-proxies\.txt
+vendor/config\.php

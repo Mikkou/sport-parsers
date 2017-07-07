@@ -48,11 +48,6 @@ abstract class Parser
         //цикл для кол-ва дней, за которое нужно распарсить
         for ($forWhatDay = 1; $forWhatDay <= $days; $forWhatDay++) {
 
-            /*
-             * Сначала соберем все событие в кучу с одной страницы
-             * и после начнем раскидывать их данные по таблицам в бд
-             * */
-
             $start = microtime(true);
 
             //получение ссылок на все события
@@ -61,82 +56,67 @@ abstract class Parser
             echo "Parsing urls from 1 page of category was " . round((microtime(true) - $start), 2)
                 . " sec.\n";
 
-            $start = microtime(true);
+            // парсинг и запись в бд событий по одному
+            foreach ($arrayUrls as $url) {
 
-            //парсим содержимое событий
-            $events = $this->getDataOfEvents($arrayUrls);
+                //парсим содержимое события
+                $dataOfEvent = $this->getDataOfEvent($url);
 
-            echo "Parsing events from 1 page of category was " . round((microtime(true) - $start), 2)
-                . " sec.\n";
+                // ложим все данные в базу данных
+                $this->putEventInDataBase($dataOfEvent);
+            }
 
-            $start = microtime(true);
-
-            //ложим все данные в базу данных
-            $this->putEventsInDataBase($events);
-
-            echo "Put events in database " . round((microtime(true) - $start), 2) . " sec.\n";
-
-            echo "Parsed " . count($events) . " objects \n";
+            echo "Parsed " . count($arrayUrls) . " objects \n";
         }
     }
 
-    public function getDataOfEvents($arrayUrls)
+    public function getDataOfEvent($urlOnEvent)
     {
-        $resultArrayWithAllDataEvents = [];
+        //подсчет кол-ва распаршенных событий
+        echo ++$this->parsedAllEvents . " - ";
 
-        echo "Begin parse objects... \n";
+        $start = microtime(true);
 
-        //распаршивание каждого события
-        foreach ($arrayUrls as $parseUrl) {
+        //поулчение html страницы события
+        $html = $this->getHtmlContentFromUrl($urlOnEvent);
 
-            //подсчет кол-ва распаршенных событий
-            echo ++$this->parsedAllEvents . " - ";
+        //выносим ссылку на события для использования в производных классах
+        $this->urlOnEvent = $urlOnEvent;
 
-            $start = microtime(true);
+        //ссылка на событие
+        $url['link'] = $urlOnEvent;
 
-            //поулчение html страницы события
-            $html = $this->getHtmlContentFromUrl($parseUrl);
+        //получение времени
+        $time = $this->getTime($html);
 
-            //выносим ссылку на события для использования в производных классах
-            $this->urlOnEvent = $parseUrl;
+        //получение вида спорта
+        $typeSport = $this->getTypeSport($html);
 
-            //ссылка на событие
-            $url['link'] = $parseUrl;
+        //получение страны
+        $country = $this->getCountry($html);
 
-            //получение времени
-            $time = $this->getTime($html);
+        //получение имени чемпионата и его айди
+        $championship = $this->getChampionship($html);
 
-            //получение вида спорта
-            $typeSport = $this->getTypeSport($html);
+        //получение имени события
+        $nameEvent = $this->getNameEvent($html);
 
-            //получение страны
-            $country = $this->getCountry($html);
+        //получение имен рынков с их разделениями по таймаутам
+        $markets = $this->getMarkets($html);
 
-            //получение имени чемпионата и его айди
-            $championship = $this->getChampionship($html);
+        //получение букмейкерских контор
+        $bookmakers = $this->getBookmakers($html);
 
-            //получение имени события
-            $nameEvent = $this->getNameEvent($html);
+        //объединение всех данных
+        $arrayMergesData = array_merge($url, $time, $typeSport, $country, $championship, $nameEvent, $markets,
+            $bookmakers);
 
-            //получение имен рынков с их разделениями по таймаутам
-            $markets = $this->getMarkets($html);
+        //проверка данных события
+        $checkedArrayData = $this->checkEvent($html, $arrayMergesData);
 
-            //получение букмейкерских контор
-            $bookmakers = $this->getBookmakers($html);
+        echo "parsed for " . round((microtime(true) - $start), 2) . " sec.\n";
 
-            //объединение всех данных
-            $arrayMergesData = array_merge($url, $time, $typeSport, $country, $championship, $nameEvent, $markets,
-                $bookmakers);
-
-            //проверка данных события
-            $checkedArrayData = $this->checkEvent($html, $arrayMergesData);
-
-            echo "parsed for " . round((microtime(true) - $start), 2) . " sec.\n";
-
-            $resultArrayWithAllDataEvents[] = $checkedArrayData;
-        }
-
-        return $resultArrayWithAllDataEvents;
+        return $checkedArrayData;
     }
 
     public function getHtmlContentFromUrl($parseUrl)
@@ -191,35 +171,29 @@ abstract class Parser
         }
     }
 
-    public function putEventsInDataBase($events)
+    public function putEventInDataBase($event)
     {
-        $count = count($events);
-
-        //запись в бд по-одному событию
-        for ($indexEvent = 0; $indexEvent < $count; $indexEvent++) {
-
-            //проверка: игнорировать событие для сохранения в бд или нет
-            if (array_key_exists('ignore_event', $events[$indexEvent])) {
-                continue;
-            }
-
-            //конторы
-            $this->putInBookmakers($events, $indexEvent);
-            //страны
-            $this->putInCountry($events, $indexEvent);
-            //турниры (должен быть перед putInEvent)
-            $this->putInTournament($events, $indexEvent);
-            //само событие
-            $this->putInEvent($events, $indexEvent);
-            //рынки
-            $this->putInMarket($events, $indexEvent);
-            //данные вида спорта
-            $this->putInSport($events, $indexEvent);
-            //
-            $this->putInSportCountry($events, $indexEvent);
-            //сводная таблица событий и их рынков (метод должен быть после putInEvent)
-            $this->putInEventMarkets($events, $indexEvent);
+        //проверка: игнорировать событие для сохранения в бд или нет
+        if (array_key_exists('ignore_event', $event)) {
+            return '';
         }
+
+        //конторы
+        $this->putInBookmakers($event);
+        //страны
+        $this->putInCountry($event);
+        //турниры (должен быть перед putInEvent)
+        $this->putInTournament($event);
+        //само событие
+        $this->putInEvent($event);
+        //рынки
+        $this->putInMarket($event);
+        //данные вида спорта
+        $this->putInSport($event);
+        //
+        $this->putInSportCountry($event);
+        //сводная таблица событий и их рынков (метод должен быть после putInEvent)
+        $this->putInEventMarkets($event);
     }
 
     public function getHtmlObject($html, $selector)
@@ -277,21 +251,21 @@ abstract class Parser
 
     abstract protected function getBookmakers($html);
 
-    abstract protected function putInBookmakers($events, $indexEvent);
+    abstract protected function putInBookmakers($event);
 
-    abstract protected function putInCountry($events, $indexEvent);
+    abstract protected function putInCountry($event);
 
-    abstract protected function putInEvent($events, $indexEvent);
+    abstract protected function putInEvent($event);
 
-    abstract protected function putInMarket($events, $indexEvent);
+    abstract protected function putInMarket($event);
 
-    abstract protected function putInSport($events, $indexEvent);
+    abstract protected function putInSport($event);
 
-    abstract protected function putInSportCountry($events, $indexEvent);
+    abstract protected function putInSportCountry($event);
 
-    abstract protected function putInTournament($events, $indexEvent);
+    abstract protected function putInTournament($event);
 
     abstract protected function checkEvent($html, $arrayMergesData);
 
-    abstract protected function putInEventMarkets($events, $indexEvent);
+    abstract protected function putInEventMarkets($event);
 }

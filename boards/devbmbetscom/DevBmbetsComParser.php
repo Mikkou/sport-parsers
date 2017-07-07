@@ -377,13 +377,13 @@ class DevBmbetsComParser extends Parser
         return $dirtyJson;
     }
 
-    protected function putInTournament($events, $indexEvent)
+    protected function putInTournament($event)
     {
         //достаем имя турнира
-        $putArray["name"] = $events[$indexEvent]["name_tournament"];
+        $putArray["name"] = $event["name_tournament"];
 
         //получаем часть ссылки на турнир
-        $arrayPartsLink = explode('/', $events[$indexEvent]["link"]);
+        $arrayPartsLink = explode('/', $event["link"]);
 
         //собираем нужную часть ссылки
         $putArray["link"] = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
@@ -402,9 +402,9 @@ class DevBmbetsComParser extends Parser
         }
     }
 
-    protected function putInSportCountry($events, $indexEvent)
+    protected function putInSportCountry($event)
     {
-        $arrayPartsLink = explode('/', $events[$indexEvent]["link"]);
+        $arrayPartsLink = explode('/', $event["link"]);
 
         //собираем нужную часть ссылки
         $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
@@ -418,13 +418,13 @@ class DevBmbetsComParser extends Parser
         }
     }
 
-    protected function putInSport($events, $indexEvent)
+    protected function putInSport($event)
     {
         //вид спорта
-        $putArray["name"] = $events[$indexEvent]["type_sport"];
+        $putArray["name"] = $event["type_sport"];
 
         //>>>получение ссылки на категорию спорта
-        $arrayPartsLink = explode('/', $events[$indexEvent]["link"]);
+        $arrayPartsLink = explode('/', $event["link"]);
 
         $count = count($arrayPartsLink);
 
@@ -452,10 +452,10 @@ class DevBmbetsComParser extends Parser
         }
     }
 
-    protected function putInMarket($events, $indexEvent)
+    protected function putInMarket($event)
     {
         //берем все рынки события
-        $arrayMarkets = $events[$indexEvent]["markets"];
+        $arrayMarkets = $event["markets"];
 
         //считаем их
         $countMarkets = count($arrayMarkets);
@@ -485,16 +485,16 @@ class DevBmbetsComParser extends Parser
         }
     }
 
-    protected function putInEvent($events, $indexEvent)
+    protected function putInEvent($event)
     {
         //объединяем все требуещиеся данные в одно место
-        $putArray["date_event"] = $events[$indexEvent]["date_event"];
-        $putArray["name"] = $events[$indexEvent]["name"];
-        $putArray["link"] = $events[$indexEvent]["link"];
+        $putArray["date_event"] = $event["date_event"];
+        $putArray["name"] = $event["name"];
+        $putArray["link"] = $event["link"];
 
         //>>>получение ссылки на турнир и запрос его айди с таблицы tournament2
         //получаем часть ссылки на турнир
-        $arrayPartsLink = explode('/', $events[$indexEvent]["link"]);
+        $arrayPartsLink = explode('/', $event["link"]);
         //собираем нужную часть ссылки
         $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
         //запрашиваем
@@ -507,25 +507,24 @@ class DevBmbetsComParser extends Parser
 
         //добавление новых
         $this->dbHelper->query("INSERT INTO event2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-
     }
 
-    protected function putInBookmakers($events, $indexEvent)
+    protected function putInBookmakers($event)
     {
-        $count = count($events[$indexEvent]['bookmakers']);
+        $count = count($event['bookmakers']);
 
         for ($i = 0; $i < $count; $i++) {
 
-            $array = $events[$indexEvent]['bookmakers'][$i];
+            $array = $event['bookmakers'][$i];
 
             $this->dbHelper->query("INSERT INTO bookmaker2 (?#) VALUES (?a)", array_keys($array), array_values($array));
 
         }
     }
 
-    protected function putInCountry($events, $indexEvent)
+    protected function putInCountry($event)
     {
-        $array = $events[$indexEvent]['country'];
+        $array = $event['country'];
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT name FROM country2 WHERE name=(?s)", $array["name"]);
@@ -537,12 +536,12 @@ class DevBmbetsComParser extends Parser
         }
     }
 
-    public function getHtmlContentFromUrl($parseUrl)
+    public function getHtmlContentFromUrl($urlOnEvent)
     {
         // parameters for cloudflare class
         $httpProxy   = new httpProxy();
         $httpProxyUA = 'proxyFactory';
-        $requestLink = $parseUrl;
+        $requestLink = $urlOnEvent;
 
         $attempts = $this->proxyHelper->getAttempts();
 
@@ -611,13 +610,13 @@ class DevBmbetsComParser extends Parser
         return $arrayMergesData;
     }
 
-    protected function putInEventMarkets($events, $indexEvent)
+    protected function putInEventMarkets($event)
     {
         //получаем айдишник события с таблицы, где они хранятся
-        $idEvent = $this->dbHelper->query("SELECT id FROM event2 WHERE link=" . "'" . $events[$indexEvent]["link"] . "'" . " ");
+        $idEvent = $this->dbHelper->query("SELECT id FROM event2 WHERE link=" . "'" . $event["link"] . "'" . " ");
 
         //берем все рынки события
-        $arrayMarkets = $events[$indexEvent]["markets"];
+        $arrayMarkets = $event["markets"];
 
         //считаем их
         $countMarkets = count($arrayMarkets);
