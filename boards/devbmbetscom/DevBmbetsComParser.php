@@ -414,7 +414,10 @@ class DevBmbetsComParser extends Parser
 
         if (!$result) {
             //записываем все в бд
-            $this->dbHelper->query("INSERT INTO sport_country2 (link) VALUES (?s)", $partLink);
+            $this->dbHelper->query("INSERT INTO sport_country2 (link, di) VALUES (?s)", $partLink);
+        } else {
+            // если такая страна есть, то открываем ее для пользователей
+            $this->dbHelper->query("UPDATE sport_country2 SET `hide`=0 WHERE `link`=(?s)", $partLink);
         }
     }
 
@@ -549,16 +552,16 @@ class DevBmbetsComParser extends Parser
         for ($i = 0; $i < $attempts; $i++) {
 
             // get random proxy from list
-            $proxy = $this->proxyHelper->getOneProxyFromList();
+            //$proxy = $this->proxyHelper->getOneProxyFromList();
 
             // Make this the same user agent you use for other cURL requests in your app
             cloudflare::useUserAgent($httpProxyUA);
 
-            $clearanceCookie = cloudflare::bypass($requestLink, $proxy);
+            $clearanceCookie = cloudflare::bypass($requestLink);
 
             // use clearance cookie to bypass page
             $requestPage = $httpProxy->performRequest($requestLink, 'GET', null,
-                ['cookies' => $clearanceCookie . "gmt=" . $this->getTimeZone() . ";"], $proxy);
+                ['cookies' => $clearanceCookie . "gmt=" . $this->getTimeZone() . ";"]);
 
             // return real page content for site
             $requestPage = json_decode($requestPage);
@@ -588,7 +591,6 @@ class DevBmbetsComParser extends Parser
 
                 // begin cycle first
                 $i = 0;
-
             }
         }
 

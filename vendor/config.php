@@ -13,8 +13,8 @@ define('TEST_MOD', '0');//debug status
 define('MAIN_DIR', 'W:/domains/parsersPicksgrail'); //main directory
 define('HOST', 'localhost'); //server
 define('USER', 'picksgrail_admin'); //user
-define('PASSWORD', '1111'); //password
-define('NAME_BD', 'picksgrail');//base
+define('PASSWORD', '3V1x6V7b'); //password
+define('NAME_BD', 'picksgrail_base');//base
 define('TEST_MOD', '1');//debug status
 */
 $config = [
@@ -22,6 +22,6 @@ $config = [
     //путь к файлу с прокси
     "proxy_file" => MAIN_DIR . '/' . "proxies.txt",
     //путь к списку прокси на сайте сервиса
-    "proxy_path_in_service" => "http://api.best-proxies.ru/feeds/proxylist.txt?key=54e145b5466e1fb5f64cbd31f403a3fd&includeType&level=1,2",
+    "proxy_path_in_service" => "http://api.best-proxies.ru/feeds/proxylist.txt?key=54e145b5466e1fb5f64cbd31f403a3fd&includeType&level=1,2&limit=10&country=ua",
 
 ];
