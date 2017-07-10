@@ -121,9 +121,9 @@ class DevBmbetsComParser extends Parser
 
     protected function getBeginTime($html)
     {
-        $object = $this->getHtmlObject($html, '.match-info > div');
+        $object = $this->getHtmlObject($html, '.match-info');
 
-        $time = trim($object[2]->plaintext);
+        $time = trim($object[0]->children[1]->plaintext);
 
         $resultTime = $time . ":00";
 
