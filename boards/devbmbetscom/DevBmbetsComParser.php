@@ -404,6 +404,9 @@ class DevBmbetsComParser extends Parser
         if (!$result) {
             //записываем все в бд
             $this->dbHelper->query("INSERT INTO tournament2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+        } else {
+            // если такая страна есть, то открываем ее для пользователей
+            $this->dbHelper->query("UPDATE tournament2 SET `hide`=0 WHERE `link`=(?s)", $putArray["link"]);
         }
     }
 
@@ -419,7 +422,7 @@ class DevBmbetsComParser extends Parser
 
         if (!$result) {
             //записываем все в бд
-            $this->dbHelper->query("INSERT INTO sport_country2 (link, di) VALUES (?s)", $partLink);
+            $this->dbHelper->query("INSERT INTO sport_country2 (link) VALUES (?s)", $partLink);
         } else {
             // если такая страна есть, то открываем ее для пользователей
             $this->dbHelper->query("UPDATE sport_country2 SET `hide`=0 WHERE `link`=(?s)", $partLink);
@@ -451,12 +454,15 @@ class DevBmbetsComParser extends Parser
         $putArray["link"] = implode("/", $newArray) . "/";
         //<<<
 
-        //проверка на дубли
+        // check on dublicate
         $result = $this->dbHelper->query("SELECT * FROM sport2 WHERE name=(?s)", $putArray["name"]);
 
         if (!$result) {
-            //записываем все в бд
+            // write all in database
             $this->dbHelper->query("INSERT INTO sport2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+        } else {
+            // return sport from hide
+            $this->dbHelper->query("UPDATE sport2 SET `hide`=0 WHERE `link`=(?s)", $putArray["link"]);
         }
     }
 
@@ -578,6 +584,7 @@ class DevBmbetsComParser extends Parser
 
             }
 
+            /*
             // if in list all proxies don't work, replace on new
             if ($i === 9) {
 
@@ -597,9 +604,12 @@ class DevBmbetsComParser extends Parser
                 // begin cycle first
                 $i = 0;
             }
+            */
         }
 
+        /*
         echo "haven't work proxy in the service!\n";
+           */
 
         return false;
 
