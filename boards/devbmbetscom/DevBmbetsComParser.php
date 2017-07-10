@@ -123,7 +123,12 @@ class DevBmbetsComParser extends Parser
     {
         $object = $this->getHtmlObject($html, '.match-info');
 
-        $time = trim($object[0]->children[1]->plaintext);
+        $time = trim($object[0]->children[0]->children[1]->plaintext);
+
+        // for some categories where another html where have time (tennis, ...)
+        if (!$time) {
+            $time = trim($object[0]->children[1]->plaintext);
+        }
 
         $resultTime = $time . ":00";
 
