@@ -42,31 +42,40 @@ class DevBmbetsComParser extends Parser
 
         $html = $this->getHtmlContentFromUrl($url);
 
-        //получаем объект из всех актуальных событий
-        $object = $this->getHtmlObject($html, 'tr[class="main-table-row  "]');
+        $arrayPartsGeneralUrl = explode('/', $url);
 
-        $countEvents = count($object);
+        preg_match_all('/href="(.+)">/', $html, $arrayUrls);
+
+        $count = count($arrayUrls[1]);
 
         $arrayEventsUrls = [];
 
         //собираем все ссылки в единый массив
-        for ($i = 0; $i < $countEvents; $i++) {
+        for ($i = 0; $i < $count; $i++) {
 
-            $partOfUrl = $object[$i]->children[2]->children[0]->children[0]->attr['href'];
+            $partsOfUrl = explode('/', $arrayUrls[1][$i]);
 
-            //формируем полную ссылку
-            $link = "http://" . $this->domain . $partOfUrl;
+            if (count($partsOfUrl) > 5 && strpos($arrayUrls[1][$i], $arrayPartsGeneralUrl[4]) !== false) {
 
-            if (strpos($link, 'com/') !== false) {
+                $cleanUrl = "http://" . $this->domain . $arrayUrls[1][$i];
 
-                //преобразование html сущностей в нормальный текст
-                $arrayEventsUrls[] = html_entity_decode($link);
+                $arrayEventsUrls[] = html_entity_decode($cleanUrl);
 
             }
+        }
+
+        $arrayEventsCleanUrls = array_unique($arrayEventsUrls);
+
+        $resultArray = [];
+
+        // numerate from 0
+        foreach ($arrayEventsCleanUrls as $value) {
+
+            $resultArray[] = $value;
 
         }
 
-        return $arrayEventsUrls;
+        return $resultArray;
     }
 
     protected function createUrl($url, $forWhatDay)
