@@ -227,9 +227,12 @@ class DevBmbetsComParser extends Parser
 
         $arrayWithName = explode(',', $dirtyName);
 
+        // clean string from dirty
+        $arrayWithName[0] = str_replace(' betting odds', '', $arrayWithName[0]);
+
         $arrayWithCleanNames = explode('vs', $arrayWithName[0]);
 
-        $arrayWithCleanNames[0] = "<span><strong>" . trim($arrayWithCleanNames[0]) . "</span></strong>";
+        $arrayWithCleanNames[0] = "<span>" . trim($arrayWithCleanNames[0]) . "</span>";
         $arrayWithCleanNames[1] = "<span>" . trim($arrayWithCleanNames[1]) . "</span>";
 
         $nameEvent['name'] = $arrayWithCleanNames[0] . " - " . $arrayWithCleanNames[1];
@@ -586,7 +589,7 @@ class DevBmbetsComParser extends Parser
             // return real page content for site
             $requestPage = json_decode($requestPage);
 
-            //return html if good responce
+            //return html if good response
             if ($requestPage->status->http_code === 200) {
 
                 return $requestPage->content;
