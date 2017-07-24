@@ -50,23 +50,25 @@ abstract class Parser
 
             $start = microtime(true);
 
-            //получение ссылок на все события
             $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
 
-            echo "Parsing urls from 1 page of category was " . round((microtime(true) - $start), 2)
+            if (empty($arrayUrls)) { continue; }
+
+            echo "Parsing " . count($arrayUrls) . " urls for " . round((microtime(true) - $start), 2)
                 . " sec.\n";
 
-            // парсинг и запись в бд событий по одному
-            foreach ($arrayUrls as $url) {
+            // parsing and write in db events one by one
+            foreach ($arrayUrls as $key => $url) {
 
-                //парсим содержимое события
                 $dataOfEvent = $this->getDataOfEvent($url);
 
                 // ложим все данные в базу данных
                 $this->putEventInDataBase($dataOfEvent);
+
             }
 
             echo "Parsed " . count($arrayUrls) . " objects \n";
+
         }
     }
 
@@ -148,8 +150,6 @@ abstract class Parser
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            echo "Response from server - " . $httpCode . ".\n";
-
             //формирование ответа
             if ($httpCode === 301 || $httpCode === 302) {
                 //редиректы
@@ -174,9 +174,7 @@ abstract class Parser
     public function putEventInDataBase($event)
     {
         //проверка: игнорировать событие для сохранения в бд или нет
-        if (array_key_exists('ignore_event', $event)) {
-            return '';
-        }
+        if (array_key_exists('ignore_event', $event)) { return ''; }
 
         //конторы
         $this->putInBookmakers($event);
