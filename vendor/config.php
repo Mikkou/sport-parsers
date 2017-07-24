@@ -6,7 +6,7 @@ define('HOST', 'localhost'); //server
 define('USER', 'picksgrail_admin'); //user
 define('PASSWORD', '3V1x6V7b'); //password
 define('NAME_BD', 'picksgrail_base');//base
-define('TEST_MOD', '0');//debug status
+define('TEST_MOD', 0);//debug status
 
 /*
 //локальные данные
@@ -15,7 +15,7 @@ define('HOST', 'localhost'); //server
 define('USER', 'picksgrail_admin'); //user
 define('PASSWORD', '3V1x6V7b'); //password
 define('NAME_BD', 'picksgrail_base');//base
-define('TEST_MOD', '1');//debug status
+define('TEST_MOD', 1);//debug status
 */
 $config = [
 
