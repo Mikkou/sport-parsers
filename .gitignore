@@ -2,3 +2,7 @@
 \.idea/
 
 vendor/config\.php
+
+proxies\.txt
+
+cf-cookies/
