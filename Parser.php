@@ -163,9 +163,13 @@ abstract class Parser
 
                 return false;
 
-            } else {
+            } elseif ($httpCode === 200) {
 
                 return $html;
+
+            } else {
+
+                return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
 
             }
         //}
