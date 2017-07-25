@@ -128,11 +128,11 @@ abstract class Parser
 
         sleep(1);
 
-        if (TEST_MOD === 0 && !empty($this->proxyHelper)) {
+        //if (TEST_MOD === 0 && !empty($this->proxyHelper)) {
 
-            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
+            //return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
 
-        } else {
+        //} else {
 
             $ch = curl_init($parseUrl);
 
@@ -168,7 +168,7 @@ abstract class Parser
                 return $html;
 
             }
-        }
+        //}
     }
 
     public function putEventInDataBase($event)
