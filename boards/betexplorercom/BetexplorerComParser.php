@@ -21,7 +21,7 @@ class BetexplorerComParser extends Parser
     {
         $cleanDomain = str_replace('.', '', $this->domain);
 
-        $path = getcwd() . "\boards\\" . $cleanDomain . "\cookies.txt";
+        $path = MAIN_DIR . "/boards/" . $cleanDomain . "/cookies.txt";
 
         return $path;
     }
@@ -329,7 +329,15 @@ class BetexplorerComParser extends Parser
     {
         $arrayPartsText = explode(", '", $dirtyTestForSearch);
 
-        $id = str_replace("'", "", $arrayPartsText[2]);
+        if (array_key_exists(2, $arrayPartsText)) {
+
+            $id = str_replace("'", "", $arrayPartsText[2]);
+
+        } else {
+
+            $id = '';
+
+        }
 
         return $id;
     }
