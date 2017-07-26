@@ -128,51 +128,44 @@ abstract class Parser
 
         sleep(1);
 
-        //if (TEST_MOD === 0 && !empty($this->proxyHelper)) {
+        $ch = curl_init($parseUrl);
 
-            //return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
+        curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
+        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
 
-        //} else {
+        $html = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-            $ch = curl_init($parseUrl);
+        //формирование ответа
+        if ($httpCode === 301 || $httpCode === 302) {
+            //редиректы
 
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($ch, CURLOPT_HEADER, 0);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
-            curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
-            curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            echo "A redirect has occurred!\n";
 
-            $html = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
+            return false;
 
-            //формирование ответа
-            if ($httpCode === 301 || $httpCode === 302) {
-                //редиректы
+        } elseif ($httpCode === 404) {
+            //страницы не существует
 
-                echo "A redirect has occurred!\n";
+            return false;
 
-                return false;
+        } elseif ($httpCode === 200) {
 
-            } elseif ($httpCode === 404) {
-                //страницы не существует
+            return $html;
 
-                return false;
+        } else {
 
-            } elseif ($httpCode === 200) {
+            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
 
-                return $html;
-
-            } else {
-
-                return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
-
-            }
-        //}
+        }
     }
 
     public function putEventInDataBase($event)
