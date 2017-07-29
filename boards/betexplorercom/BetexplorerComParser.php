@@ -3,8 +3,6 @@
 namespace parsersPicksgrail\boards\betexplorercom;
 
 use parsersPicksgrail\Parser;
-use cloudflare;
-use httpProxy;
 
 class BetexplorerComParser extends Parser
 {
@@ -28,25 +26,8 @@ class BetexplorerComParser extends Parser
 
     public function getHeaders()
     {
-        $time = $this->getTimeZone();
-
-        // fix little bit if get plus value
-        if ($time > 0) {
-
-            $time = "+" . $time;
-
-        }
-
         $headers = [
-            'Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
-            'Cache-Control:max-age=0',
-            'Connection:keep-alive',
-            'Host:www.betexplorer.com',
-            'Referer:http://www.betexplorer.com/next/soccer/',
-            'Upgrade-Insecure-Requests:1',
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
-            'Cookie:js_cookie=1; my_cookie_id=68525836; my_cookie_hash=55ef0664ecbb3733e2a7604d76fa9c7f; widget_timeStamp=1499609833; my_timezone=' . $time . '; _ga=GA1.2.1824180402.1499604808; _gid=GA1.2.530232864.1499604808; widget_pageViewCount=10',
         ];
 
         return $headers;
@@ -58,6 +39,8 @@ class BetexplorerComParser extends Parser
         $url = $this->createUrl($url, $forWhatDay);
 
         echo $url . "\n";
+
+        $date = $this->getDateForParse($forWhatDay, "day");
 
         $html = $this->getHtmlContentFromUrl($url);
 
@@ -76,7 +59,8 @@ class BetexplorerComParser extends Parser
             $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
 
             if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
-                && (int)date('d') === (int)$dateOfEvent) {
+                && $date === (int)$dateOfEvent
+            ) {
 
                 $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
 
@@ -93,20 +77,16 @@ class BetexplorerComParser extends Parser
         // create url with need date
         if ($forWhatDay !== 1) {
 
-            $forWhatDay -= 1;
+            // get year in format "2017"
+            $year = $this->getDateForParse($forWhatDay, "year");
 
-            $date = date('Ymd');
+            // get number of month like "7" and check (add 0)
+            $month = $this->getDateForParse($forWhatDay, "month");
+            $month = ((int)$month < 10) ? "0" . $month : $month;
 
-            //достаем год
-            $year = substr($date, 0, 4);
-
-            //достаем месяц
-            $month = substr($date, 4, 2);
-
-            //достаем день
-            $day = substr($date, 6, 4);
-
-            $day += $forWhatDay;
+            // get number of day like "31" and check (add 0)
+            $day = $this->getDateForParse($forWhatDay, "day");
+            $day = ((int)$day < 10) ? "0" . $day : $day;
 
             $url .= "?year=" . $year . "&month=" . $month . "&day=" . $day . "";
         }
@@ -128,9 +108,115 @@ class BetexplorerComParser extends Parser
 
         $beginTime = $this->getBeginTime($arrayDataDate);
 
-        $resultTime["date_event"] = $beginDate . " " . $beginTime;
+        $resultTime["date_event"] = $this->checkDateAndTime($beginDate, $beginTime);
 
         return $resultTime;
+    }
+
+    /**
+     * преобразование года, месяца, дня, часа в соответствии с заданным таймаутом
+     * этот метод создан только из-за того, что не получается настроить куки для того, чтобы
+     * сайт сам отдавал нужные все данные о дате и времени. Поэтому делаем преобразование сами
+     * @param string $beginDate
+     * @param string  $beginTime
+     * @return string
+     */
+    private function checkDateAndTime($beginDate, $beginTime)
+    {
+        $needTime = $this->getTimeZone();
+
+        $fixTime = $needTime - 1;
+
+        $arrayPartsTime = explode(":", $beginTime);
+
+        // if need add hours
+        if ($fixTime >= 0) {
+
+            // modified format time if happened 24 number
+            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime ;
+
+            // if a lot happened fix time and date
+            if ((int)$arrayPartsTime[0] > 24) {
+
+                // get actual time on following day
+                $arrayPartsTime[0] = $arrayPartsTime[0] - 24;
+
+                $arrayPartsDate = explode("-", $beginDate);
+
+                // get separately month and year for check next
+                $month = $arrayPartsDate[1];
+                $year = $arrayPartsDate[0];
+
+                // get actual following day
+                $arrayPartsDate[2] = $arrayPartsDate[2] + 1;
+
+                // get count of days in month for check if we got the big number
+                $daysOfMonthForCheck = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+
+                // if big -> change number of month on next
+                if ($arrayPartsDate[2] > $daysOfMonthForCheck) {
+
+                    // number next month
+                    $arrayPartsDate[2] = $arrayPartsDate[2] - $daysOfMonthForCheck;
+
+                    $arrayPartsDate[1] = $arrayPartsDate[1] + 1;
+
+                    // if very big got number of month
+                    if ($arrayPartsDate[1] > 12) {
+
+                        $arrayPartsDate[1] = $arrayPartsDate[1] - 12;
+
+                        // refresh year
+                        $arrayPartsDate[0] = $arrayPartsDate[0] + 1;
+                    }
+                }
+
+                $beginDate = implode('-', $arrayPartsDate);
+
+            }
+
+            // if need reduce time
+        } else {
+            // if got number with minus change him on plus
+            $fixTime = -($fixTime);
+
+            // if we try take away from number which less than the deductible
+            if ($fixTime > $arrayPartsTime[0]) {
+
+                // learn the remainder of the subtraction for subtraction from the next day
+                $newFixTime = $fixTime - (int)$arrayPartsTime[0];
+
+                $arrayPartsTime[0] = 24 - $newFixTime;
+
+                $arrayPartsDate = explode("-", $beginDate);
+
+                // refresh day
+                $arrayPartsDate[2] = (int)$arrayPartsDate[2] - 1;
+
+                if ($arrayPartsDate[2] === 0) {
+
+                    $arrayPartsDate[1] = ($arrayPartsDate[1] - 1 === 0) ? 12 : $arrayPartsDate[1] - 1;
+
+                    $month = $arrayPartsDate[1];
+                    $year = $arrayPartsDate[0];
+
+                    $arrayPartsDate[2] = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+
+                }
+
+                $beginDate = implode("-", $arrayPartsDate);
+
+            } else {
+                $arrayPartsTime[0] = $arrayPartsTime[0] - $fixTime;
+            }
+        }
+
+        $arrayPartsTime[0] = ((int)$arrayPartsTime[0] < 10) ? "0" . $arrayPartsTime[0] : $arrayPartsTime[0];
+
+        $beginTime = implode(":", $arrayPartsTime);
+
+        return $beginDate . " " . $beginTime;
+
     }
 
     protected function getBeginDate($arrayDataDate)
@@ -249,7 +335,8 @@ class BetexplorerComParser extends Parser
         // this for request to get names markets
         if (strpos($this->urlOnEvent, '/baseball/') !== false || strpos($this->urlOnEvent, '/volleyball/')
             !== false || strpos($this->urlOnEvent, '/basketball/') !== false
-            || strpos($this->urlOnEvent, '/tennis/') !== false) {
+            || strpos($this->urlOnEvent, '/tennis/') !== false
+        ) {
 
             $idMarket = 'ha';
 
@@ -288,14 +375,18 @@ class BetexplorerComParser extends Parser
 
             $dirtyTestForSearch = $arrayTagsLi[$i];
 
-            if (strlen($dirtyTestForSearch) < 50) { continue; }
+            if (strlen($dirtyTestForSearch) < 50) {
+                continue;
+            }
 
             $arraySingleMarket['market_name'] = $this->getMarketName($dirtyTestForSearch);
 
             $arraySingleMarket['code'] = $this->getMarketId($dirtyTestForSearch);
 
             // don't parse wrong markets
-            if (empty($arraySingleMarket['code'])) { continue; }
+            if (empty($arraySingleMarket['code'])) {
+                continue;
+            }
 
             $resultArray[] = $arraySingleMarket;
 
@@ -344,7 +435,7 @@ class BetexplorerComParser extends Parser
 
     public function getBookmakers($html)
     {
-        $arrayPartsHtml = explode('<tr',$this->partHtml->odds);
+        $arrayPartsHtml = explode('<tr', $this->partHtml->odds);
 
         $arrayBookmakers = [];
 
@@ -526,6 +617,7 @@ class BetexplorerComParser extends Parser
 
         //добавление новых
         $this->dbHelper->query("INSERT INTO event3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+
     }
 
     protected function putInBookmakers($event)

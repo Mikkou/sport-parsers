@@ -133,12 +133,11 @@ abstract class Parser
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0);
         curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
         curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         $html = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -216,6 +215,29 @@ abstract class Parser
             . "'" . " ");
 
         return $key[0]["value"];
+    }
+
+
+    /**
+     * @param $forWhatDay - today, tomorrow and so on
+     * @param $whatNeed - integer of day, month or year will return
+     * @return int - day for parsing
+     */
+    protected function getDateForParse($forWhatDay, $whatNeed)
+    {
+        if ($whatNeed === "day") {
+
+            return (int)date("d", strtotime("+" . ($forWhatDay - 1) . " day"));
+
+        } elseif ($whatNeed === "month") {
+
+            return (int)date("m", strtotime("+" . ($forWhatDay - 1) . " day"));
+
+        } elseif ($whatNeed === "year") {
+
+            return (int)date("Y", strtotime("+" . ($forWhatDay - 1) . " day"));
+
+        }
     }
 
     abstract protected function getUrlsOnEvents($url, $forWhatDay);
