@@ -188,6 +188,8 @@ abstract class Parser
         $this->putInSportCountry($event);
         //сводная таблица событий и их рынков (метод должен быть после putInEvent)
         $this->putInEventMarkets($event);
+
+        $this->putInSportSport2($event);
     }
 
     public function getHtmlObject($html, $selector)
@@ -285,4 +287,6 @@ abstract class Parser
     abstract protected function checkEvent($html, $arrayMergesData);
 
     abstract protected function putInEventMarkets($event);
+
+    abstract protected function putInSportSport2($event);
 }

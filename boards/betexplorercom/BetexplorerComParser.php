@@ -27,6 +27,14 @@ class BetexplorerComParser extends Parser
     public function getHeaders()
     {
         $headers = [
+            'Accept:application/json, text/javascript, */*; q=0.01',
+            'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
+            'Connection:keep-alive',
+            'Cookie:js_cookie=1; my_cookie_id=68963694; my_cookie_hash=a3a6cff7d32019c6966525acd7de9e7d; my_timezone=+1; widget_timeStamp=1501437510; widget_pageViewCount=4; _ga=GA1.2.1926125207.1500904424; _gid=GA1.2.1158843575.1501358362',
+            'Host:www.betexplorer.com',
+            'Referer:http://www.betexplorer.com/tennis/challenger-men-singles/chengdu/barry-s-rawat-s/0KEQy1jk/',
+            'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36',
+            'X-Requested-With:XMLHttpRequest',
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
         ];
 
@@ -528,12 +536,16 @@ class BetexplorerComParser extends Parser
         //собираем нужную часть ссылки
         $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
 
+        $putArray['link'] = $partLink;
+        $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport3 WHERE name=(?s)", $event['type_sport'])[0]["id"];
+        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country']['name'])[0]["id"];
+
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport_country3 WHERE link=(?s)", $partLink);
 
         if (!$result) {
             //записываем все в бд
-            $this->dbHelper->query("INSERT INTO sport_country3 (link, di) VALUES (?s)", $partLink);
+            $this->dbHelper->query("INSERT INTO sport_country3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } else {
             // если такая страна есть, то открываем ее для пользователей
             $this->dbHelper->query("UPDATE sport_country3 SET `hide`=0 WHERE `link`=(?s)", $partLink);
@@ -561,12 +573,26 @@ class BetexplorerComParser extends Parser
         }
         //<<<
 
+        $putArray["id_market"] = '';
+
+        // get id of first market (default)
+        if ($event["markets"]) {
+            $putArray["id_market"] = $event["markets"][0]["code"];
+            $arrayResult = $this->dbHelper->query("SELECT id FROM market3 WHERE code=(?s)", $event["markets"][0]["code"]);
+            $putArray["id_market"] = $arrayResult[0]["id"];
+        }
+
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport3 WHERE name=(?s)", $putArray["name"]);
 
         if (!$result) {
             //записываем все в бд
             $this->dbHelper->query("INSERT INTO sport3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+        } elseif (!empty($putArray["id_market"])) {
+            $this->dbHelper->query("UPDATE sport3 SET `hide`=0, `id_market`=(?) WHERE `link`=(?s)", $putArray["id_market"], $putArray["link"]);
+        } else {
+            // return sport from hide
+            $this->dbHelper->query("UPDATE sport3 SET `hide`=0 WHERE `link`=(?s)", $putArray["link"]);
         }
     }
 
@@ -649,6 +675,12 @@ class BetexplorerComParser extends Parser
 
     protected function checkEvent($html, $arrayMergesData)
     {
+        if (empty($arrayMergesData["markets"])) {
+
+            $arrayMergesData["ignore_event"] = 1;
+
+        }
+
         return $arrayMergesData;
     }
 
@@ -685,5 +717,14 @@ class BetexplorerComParser extends Parser
 
             }
         }
+    }
+
+    protected function putInSportSport2($event)
+    {
+        //получаем айдишник вида спорта с таблицы, где они хранятся
+        $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
+
+        $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
+
     }
 }

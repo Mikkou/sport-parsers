@@ -466,12 +466,21 @@ class DevBmbetsComParser extends Parser
         $putArray["link"] = implode("/", $newArray) . "/";
         //<<<
 
+        $putArray["id_market"] = '';
+
+        // get id of first market (default)
+        if ($event["markets"]) {
+            $putArray["id_market"] = (int)$event["markets"][0]["market_id"];
+        }
+
         // check on dublicate
         $result = $this->dbHelper->query("SELECT * FROM sport2 WHERE name=(?s)", $putArray["name"]);
 
         if (!$result) {
             // write all in database
             $this->dbHelper->query("INSERT INTO sport2 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+        } elseif (!empty($putArray["id_market"])) {
+            $this->dbHelper->query("UPDATE sport2 SET `hide`=0, `id_market`=(?) WHERE `link`=(?s)", $putArray["id_market"], $putArray["link"]);
         } else {
             // return sport from hide
             $this->dbHelper->query("UPDATE sport2 SET `hide`=0 WHERE `link`=(?s)", $putArray["link"]);
@@ -673,5 +682,10 @@ class DevBmbetsComParser extends Parser
                 }
             }
         }
+    }
+
+    protected function putInSportSport2($event)
+    {
+        return '';
     }
 }
