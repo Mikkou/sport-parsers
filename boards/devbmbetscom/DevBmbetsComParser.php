@@ -37,7 +37,7 @@ class DevBmbetsComParser extends Parser
     {
         //создаем новый урл исключительно для нужного дня
         $url = $this->createUrl($url, $forWhatDay);
-
+        
         echo $url . "\n";
 
         $html = $this->getHtmlContentFromUrl($url);
@@ -80,16 +80,18 @@ class DevBmbetsComParser extends Parser
 
     protected function createUrl($url, $forWhatDay)
     {
-        //корректируем урл дня категории, который будем парсить
-        if ($forWhatDay === 1) {
+        // get year in format "2017"
+        $year = $this->getDateForParse($forWhatDay, "year");
 
-            $url .= "/" . date('Ymd');
+        // get number of month like "7" and check (add 0)
+        $month = $this->getDateForParse($forWhatDay, "month");
+        $month = ((int)$month < 10) ? "0" . $month : $month;
 
-        } else {
+        // get number of day like "31" and check (add 0)
+        $day = $this->getDateForParse($forWhatDay, "day");
+        $day = ((int)$day < 10) ? "0" . $day : $day;
 
-            $url .= "/" . (date('Ymd') + ($forWhatDay - 1));
-
-        }
+        $url .= "/" . $year . $month . $day;
 
         $this->newUrlOfCategory = $url;
 
