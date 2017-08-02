@@ -234,9 +234,6 @@ class DevBmbetsComParser extends Parser
 
         $arrayWithCleanNames = explode('vs', $arrayWithName[0]);
 
-        $arrayWithCleanNames[0] = "<span>" . trim($arrayWithCleanNames[0]) . "</span>";
-        $arrayWithCleanNames[1] = "<span>" . trim($arrayWithCleanNames[1]) . "</span>";
-
         $nameEvent['name'] = $arrayWithCleanNames[0] . " - " . $arrayWithCleanNames[1];
 
         return $nameEvent;

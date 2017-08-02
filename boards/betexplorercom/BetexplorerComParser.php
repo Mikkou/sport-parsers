@@ -10,6 +10,8 @@ class BetexplorerComParser extends Parser
 
     protected $partHtml;
 
+    protected $forSearchCountry;
+
     function __construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper)
     {
         parent::__construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper);
@@ -52,6 +54,8 @@ class BetexplorerComParser extends Parser
 
         $html = $this->getHtmlContentFromUrl($url);
 
+        $this->getArrayNamesOfCountry($html, $date);
+
         //получаем объект из всех актуальных событий
         $object = $this->getHtmlObject($html, 'tbody > tr[data-dt]');
 
@@ -78,6 +82,47 @@ class BetexplorerComParser extends Parser
         }
 
         return $arrayEventsUrls;
+    }
+
+    protected function getArrayNamesOfCountry($html, $date)
+    {
+        $object = $this->getHtmlObject($html, '.table-matches > tbody > tr');
+
+        $countEvents = count($object);
+
+        $arrayEventsUrls = [];
+
+        $country = '';
+
+        //собираем все ссылки в единый массив
+        for ($i = 0; $i < $countEvents; $i++) {
+
+            $dateOfEvent = $object[$i]->attr["data-dt"];
+
+            if ($object[$i]->attr["class"] === "js-tournament") {
+                $country = $object[$i]->children[0]->children[0]->children[0]->children[0]->attr["alt"];
+            }
+
+            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
+
+            $event = [];
+
+            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
+                && $date === (int)$dateOfEvent
+            ) {
+
+                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
+
+                $event[] = $country;
+                $event[] = 'http://www.' . $this->domain . $partOfUrl;
+
+                $arrayEventsUrls[] = $event;
+
+            }
+        }
+
+        $this->forSearchCountry = $arrayEventsUrls;
+
     }
 
     protected function createUrl($url, $forWhatDay)
@@ -277,6 +322,20 @@ class BetexplorerComParser extends Parser
     {
         $country['name'] = $this->getCountryName($html);
 
+        $count = count($this->forSearchCountry);
+
+        $country = '';
+
+        // ищем название страны по урлу события
+        for ($i = 0; $i < $count; $i++ ) {
+
+            $url = $this->forSearchCountry[$i][1];
+
+            if ($url === $this->urlOnEvent) {
+                $country = $this->forSearchCountry[$i][0];
+            }
+        }
+
         $resultArray['country'] = $country;
 
         return $resultArray;
@@ -310,9 +369,21 @@ class BetexplorerComParser extends Parser
     {
         $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
 
-        $name = html_entity_decode(trim($object[3]->plaintext));
+        $part1 = html_entity_decode(trim($object[2]->plaintext));
+        $part2 = html_entity_decode(trim($object[3]->plaintext));
+        $part2 = trim(str_replace(['2017/2018', '2017'], '', $part2));
 
-        return $name;
+        $object2 = $this->getHtmlObject($html, '.wrap-section__header__title > a');
+        $dirtyPart3 = trim($object2[0]->plaintext);
+        if (strpos($dirtyPart3, ', ') !== false) {
+            $array = explode(', ', $dirtyPart3);
+            $part3 = $array[1];
+            $resultName = $part1 . ": " . $part2 . ", " . $part3;
+        } else {
+            $resultName = $part1 . ": " . $part2;
+        }
+
+        return $resultName;
     }
 
     protected function getChampionshipId($html)
@@ -326,12 +397,7 @@ class BetexplorerComParser extends Parser
 
         $name = html_entity_decode(trim($object[4]->plaintext));
 
-        $arrayWithCleanNames = explode(' - ', $name);
-
-        $arrayWithCleanNames[0] = "<span>" . trim($arrayWithCleanNames[0]) . "</span>";
-        $arrayWithCleanNames[1] = "<span>" . trim($arrayWithCleanNames[1]) . "</span>";
-
-        $nameEvent['name'] = $arrayWithCleanNames[0] . " - " . $arrayWithCleanNames[1];
+        $nameEvent['name'] = $name;
 
         return $nameEvent;
     }
