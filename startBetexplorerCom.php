@@ -6,6 +6,7 @@ use parsersPicksgrail\boards\betexplorercom\BetexplorerComParser;
 
 ini_set('display_errors', 1);
 set_time_limit(0);
+error_reporting(-1);
 
 require_once __DIR__ . '/vendor/config.php';
 require_once __DIR__ . '/vendor/autoload.php';

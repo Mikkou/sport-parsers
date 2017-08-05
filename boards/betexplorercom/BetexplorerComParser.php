@@ -604,7 +604,7 @@ class BetexplorerComParser extends Parser
 
         $putArray['link'] = $partLink;
         $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport3 WHERE name=(?s)", $event['type_sport'])[0]["id"];
-        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country']['name'])[0]["id"];
+        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country'])[0]["id"];
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport_country3 WHERE link=(?s)", $partLink);
@@ -614,7 +614,8 @@ class BetexplorerComParser extends Parser
             $this->dbHelper->query("INSERT INTO sport_country3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } else {
             // если такая страна есть, то открываем ее для пользователей
-            $this->dbHelper->query("UPDATE sport_country3 SET `hide`=0 WHERE `link`=(?s)", $partLink);
+            $this->dbHelper->query("UPDATE sport_country3 SET `hide`=0, `id_sport`=(?), `id_country`=(?) WHERE `link`=(?s)",
+                $putArray['id_sport'], $putArray['id_country'], $partLink);
         }
     }
 
@@ -727,7 +728,7 @@ class BetexplorerComParser extends Parser
 
     protected function putInCountry($event)
     {
-        $array = $event['country'];
+        $array["name"] = $event['country'];
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT name FROM country3 WHERE name=(?s)", $array["name"]);
