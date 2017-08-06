@@ -371,16 +371,31 @@ class BetexplorerComParser extends Parser
 
         $part1 = html_entity_decode(trim($object[2]->plaintext));
         $part2 = html_entity_decode(trim($object[3]->plaintext));
-        $part2 = trim(str_replace(['2017/2018', '2017'], '', $part2));
+        $part2 = trim(str_replace(['2017/2018', '2017', '2016/2017', '2019', '2017/2018', '2018'], '', $part2));
 
         $object2 = $this->getHtmlObject($html, '.wrap-section__header__title > a');
         $dirtyPart3 = trim($object2[0]->plaintext);
+
         if (strpos($dirtyPart3, ', ') !== false) {
             $array = explode(', ', $dirtyPart3);
             $part3 = $array[1];
-            $resultName = $part1 . ": " . $part2 . ", " . $part3;
+
+            // если перед двоеточием будет страна, то не добавляем ее в результат имени
+            if (strpos($part1, '-') !== false) {
+                $resultName = $part1 . ": " . $part2 . ", " . $part3;
+            } else {
+                $resultName = $part2 . ", " . $part3;
+            }
+
         } else {
-            $resultName = $part1 . ": " . $part2;
+
+            // если перед двоеточием будет страна, то не добавляем ее в результат имени
+            if (strpos($part1, '-') !== false) {
+                $resultName = $part1 . ": " . $part2;
+            } else {
+                $resultName = $part2;
+            }
+
         }
 
         return $resultName;
