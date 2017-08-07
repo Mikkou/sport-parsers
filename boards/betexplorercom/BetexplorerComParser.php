@@ -597,8 +597,13 @@ class BetexplorerComParser extends Parser
         $putArray["link"] = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
 
         //получение айди-индекса с таблицы sport_county2 для столбца "id_sc"
-        $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
-        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $link);
+        if (strpos($event["link"], 'tennis') !== false) {
+            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
+        } else {
+            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
+        }
+
+        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $partLink);
         $putArray["id_sc"] = $arrayId[0]["id"];
 
         //проверка на дубли
@@ -607,6 +612,10 @@ class BetexplorerComParser extends Parser
         if (!$result) {
             //записываем все в бд
             $this->dbHelper->query("INSERT INTO tournament3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+        } else {
+            // если такая страна есть, то открываем ее для пользователей
+            $this->dbHelper->query("UPDATE tournament3 SET `hide`=0, `id_sc`=(?), `name`=(?) WHERE `link`=(?s)",
+                $putArray['id_sc'], $putArray['name'], $partLink);
         }
     }
 
@@ -614,18 +623,23 @@ class BetexplorerComParser extends Parser
     {
         $arrayPartsLink = explode('/', $event["link"]);
 
-        //собираем нужную часть ссылки
-        $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
+        // проверка для событий тенниса. У них уникальность в ссылке происходит по 3ем частям, не по двум
+        // собираем нужную часть ссылки
+        if (strpos($event["link"], 'tennis') !== false) {
+            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
+        } else {
+            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
+        }
 
         $putArray['link'] = $partLink;
         $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport3 WHERE name=(?s)", $event['type_sport'])[0]["id"];
         $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country'])[0]["id"];
 
-        //проверка на дубли
+        // проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport_country3 WHERE link=(?s)", $partLink);
 
         if (!$result) {
-            //записываем все в бд
+            // записываем все в бд
             $this->dbHelper->query("INSERT INTO sport_country3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } else {
             // если такая страна есть, то открываем ее для пользователей
