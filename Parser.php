@@ -4,47 +4,32 @@ namespace parsersPicksgrail;
 
 use simple_html_dom;
 use parsersPicksgrail\helpers\ProxyHelper;
-use parsersPicksgrail\helpers\DBHelper;
 
 abstract class Parser
 {
     protected $urlOfCategory;
-
     protected $domain;
-
     protected $simpleDom;
-
     protected $config;
-
     protected $urlOnEvent;
-
     protected $keysForOptions;
-
     protected $parsedAllEvents = 0;
-
     protected $dbHelper;
 
     function __construct($urlOfCategory, $domain, $config, $keysForOptions, $DBHelper)
     {
         $this->urlOfCategory = $urlOfCategory;
-
         $this->domain = $domain;
-
         $this->config = $config;
-
         $this->keysForOptions = $keysForOptions;
-
         $this->simpleDom = new simple_html_dom();
-
         $this->proxyHelper = new ProxyHelper($config, $this->domain);
-
         $this->dbHelper = $DBHelper;
     }
 
     public function start()
     {
         $days = $this->getDays();
-
         //цикл для кол-ва дней, за которое нужно распарсить
         for ($forWhatDay = 1; $forWhatDay <= $days; $forWhatDay++) {
 
@@ -54,21 +39,16 @@ abstract class Parser
 
             if (empty($arrayUrls)) { continue; }
 
-            echo "Parsing " . count($arrayUrls) . " urls for " . round((microtime(true) - $start), 2)
+            echo "\nParsing " . count($arrayUrls) . " urls for " . round((microtime(true) - $start), 2)
                 . " sec.\n";
 
             // parsing and write in db events one by one
             foreach ($arrayUrls as $key => $url) {
-
                 $dataOfEvent = $this->getDataOfEvent($url);
-
-                // ложим все данные в базу данных
                 $this->putEventInDataBase($dataOfEvent);
-
             }
 
             echo "Parsed " . count($arrayUrls) . " objects \n";
-
         }
     }
 
@@ -76,94 +56,67 @@ abstract class Parser
     {
         //подсчет кол-ва распаршенных событий
         echo ++$this->parsedAllEvents . " - ";
-
         $start = microtime(true);
-
-        //поулчение html страницы события
-        $html = $this->getHtmlContentFromUrl($urlOnEvent);
-
         //выносим ссылку на события для использования в производных классах
         $this->urlOnEvent = $urlOnEvent;
-
-        //ссылка на событие
-        $url['link'] = $urlOnEvent;
-
-        //получение времени
-        $time = $this->getTime($html);
-
-        //получение вида спорта
-        $typeSport = $this->getTypeSport($html);
-
-        //получение страны
-        $country = $this->getCountry($html);
-
+        $urlOnEvent = $this->modifiedUrlOnEvent($urlOnEvent);
+        $response = $this->getHtmlContentFromUrl($urlOnEvent);
+        $url['link'] = $this->urlOnEvent;
+        $time = $this->getTime($response);
+        $typeSport = $this->getTypeSport($response);
+        $country = $this->getCountry($response);
         //получение имени чемпионата и его айди
-        $championship = $this->getChampionship($html);
-
-        //получение имени события
-        $nameEvent = $this->getNameEvent($html);
-
+        $championship = $this->getChampionship($response);
+        $nameEvent = $this->getNameEvent($response);
         //получение имен рынков с их разделениями по таймаутам
-        $markets = $this->getMarkets($html);
-
+        $markets = $this->getMarkets($response);
         //получение букмейкерских контор
-        $bookmakers = $this->getBookmakers($html);
-
+        $bookmakers = $this->getBookmakers($response);
         //объединение всех данных
         $arrayMergesData = array_merge($url, $time, $typeSport, $country, $championship, $nameEvent, $markets,
             $bookmakers);
-
         //проверка данных события
-        $checkedArrayData = $this->checkEvent($html, $arrayMergesData);
-
+        $checkedArrayData = $this->checkEvent($response, $arrayMergesData);
         echo "parsed for " . round((microtime(true) - $start), 2) . " sec.\n";
-
         return $checkedArrayData;
     }
 
-    public function getHtmlContentFromUrl($parseUrl)
+    public function getHtmlContentFromUrl($parseUrl, $headers = '')
     {
+        if (!$headers) {
+            $headers = $this->getHeaders();
+        }
+
         $cookies = $this->getCookies();
-        $headers = $this->getHeaders();
 
         sleep(1);
-
         $ch = curl_init($parseUrl);
-
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
-        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
+        if ($this->domain !== 'betbrain.com') {
+            curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
+            curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
+        }
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-
-        $html = curl_exec($ch);
+        $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         //формирование ответа
         if ($httpCode === 301 || $httpCode === 302) {
             //редиректы
-
             echo "A redirect has occurred!\n";
-
             return false;
-
         } elseif ($httpCode === 404) {
             //страницы не существует
-
             return false;
-
         } elseif ($httpCode === 200) {
-
-            return $html;
-
+            return $result;
         } else {
-
             return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
-
         }
     }
 
@@ -171,7 +124,6 @@ abstract class Parser
     {
         //проверка: игнорировать событие для сохранения в бд или нет
         if (array_key_exists('ignore_event', $event)) { return ''; }
-
         //конторы
         $this->putInBookmakers($event);
         //страны
@@ -188,16 +140,13 @@ abstract class Parser
         $this->putInSportCountry($event);
         //сводная таблица событий и их рынков (метод должен быть после putInEvent)
         $this->putInEventMarkets($event);
-
         $this->putInSportSport2($event);
     }
 
     public function getHtmlObject($html, $selector)
     {
         $this->simpleDom->load($html);
-
         $object = $this->simpleDom->find($selector);
-
         return $object;
     }
 
@@ -206,7 +155,6 @@ abstract class Parser
         //получение количества дней
         $key = $this->dbHelper->query("SELECT `value` FROM options WHERE `key` = " . "'" . $this->keysForOptions["days"]
             . "'" . " ");
-
         return $key[0]["value"];
     }
 
@@ -215,7 +163,6 @@ abstract class Parser
         //получение временной зоны
         $key = $this->dbHelper->query("SELECT `value` FROM options WHERE `key` = " . "'" . $this->keysForOptions["timeZone"]
             . "'" . " ");
-
         return $key[0]["value"];
     }
 
@@ -228,18 +175,38 @@ abstract class Parser
     protected function getDateForParse($forWhatDay, $whatNeed)
     {
         if ($whatNeed === "day") {
-
             return (int)date("d", strtotime("+" . ($forWhatDay - 1) . " day"));
-
         } elseif ($whatNeed === "month") {
-
             return (int)date("m", strtotime("+" . ($forWhatDay - 1) . " day"));
-
         } elseif ($whatNeed === "year") {
-
             return (int)date("Y", strtotime("+" . ($forWhatDay - 1) . " day"));
-
         }
+    }
+
+    /**
+     * @param $string - with years for delete
+     * @return string - without years
+     */
+    protected function deleteYears($string)
+    {
+        return trim(str_replace(['2017/2018', '2017', '2016/2017', '2019', '2017/2018', '2018'], '', $string));
+    }
+
+    /**
+     * @param $forWhatDay - parsing. For example, if get 1 then today, if 2 - tomorrow, and so on.
+     * @return array - with parts of need date
+     */
+    protected function getDateForUrl($forWhatDay)
+    {
+        // get year in format "2017"
+        $result["year"] = $this->getDateForParse($forWhatDay, "year");
+        // get number of month like "7" and check (add 0)
+        $result["month"] = $this->getDateForParse($forWhatDay, "month");
+        $result["month"] = ((int)$result["month"] < 10) ? "0" . $result["month"] : $result["month"];
+        // get number of day like "31" and check (add 0)
+        $result["day"] = $this->getDateForParse($forWhatDay, "day");
+        $result["day"] = ((int)$result["day"] < 10) ? "0" . $result["day"] : $result["day"];
+        return $result;
     }
 
     abstract protected function getUrlsOnEvents($url, $forWhatDay);
@@ -289,4 +256,6 @@ abstract class Parser
     abstract protected function putInEventMarkets($event);
 
     abstract protected function putInSportSport2($event);
+
+    abstract protected function modifiedUrlOnEvent($urlOnEvent);
 }

@@ -687,4 +687,9 @@ class DevBmbetsComParser extends Parser
     {
         return '';
     }
+
+    protected function modifiedUrlOnEvent($urlOnEvent)
+    {
+        return $urlOnEvent;
+    }
 }

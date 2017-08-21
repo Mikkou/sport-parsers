@@ -8,3 +8,5 @@ proxies\.txt
 cf-cookies/
 
 boards/betexplorercom/cookies\.txt
+
+*.txt

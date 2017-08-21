@@ -1,10 +1,10 @@
 <?php
 
-namespace parsersPicksgrail\boards\betexplorercom;
+namespace parsersPicksgrail\boards\oddsportalcom;
 
 use parsersPicksgrail\Parser;
 
-class BetexplorerComParser extends Parser
+class OddsportalComParser extends Parser
 {
     protected $newUrlOfCategory;
 
@@ -29,14 +29,6 @@ class BetexplorerComParser extends Parser
     public function getHeaders()
     {
         $headers = [
-            'Accept:application/json, text/javascript, */*; q=0.01',
-            'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
-            'Connection:keep-alive',
-            'Cookie:js_cookie=1; my_cookie_id=68963694; my_cookie_hash=a3a6cff7d32019c6966525acd7de9e7d; my_timezone=+1; widget_timeStamp=1501437510; widget_pageViewCount=4; _ga=GA1.2.1926125207.1500904424; _gid=GA1.2.1158843575.1501358362',
-            'Host:www.betexplorer.com',
-            'Referer:http://www.betexplorer.com/tennis/challenger-men-singles/chengdu/barry-s-rawat-s/0KEQy1jk/',
-            'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36',
-            'X-Requested-With:XMLHttpRequest',
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
         ];
 
@@ -45,19 +37,66 @@ class BetexplorerComParser extends Parser
 
     public function getUrlsOnEvents($url, $forWhatDay)
     {
+        $date = $this->getDateForUrl($forWhatDay);
+        $date = $date["year"] . $date["month"] . $date["day"];
+        $html = $this->getHtmlContentFromUrl($url . $date . '/');
+
+        $headers = array(
+            'Referer: ' . $url . '/' .$date.'/'
+        );
+
+        $sport_id = (int) $_GET['sport_id'];
+
+        $hash = get_hash($html);
+        $hash = urldecode($hash->xHashf->{$cur_date});
+
+        $html = get_web('http://fb.oddsportal.com/ajax-next-games/'.$sport_id.'/0/2/'.$cur_date.'/'.$hash.'.dat?_=1479303161702',false,$headers);
+
+        $re = '/(<table.+?>.+?<\\\\\/table>)/';
+        preg_match($re, $html, $matches);
+
+        if (!isset($matches[1])){
+            die('error get matches table!');
+        }
+
+        $html = str_replace('\"','"',$matches[1]);
+        $html = str_replace('\/','/',$html);
+
+        $dom = new PHPHtmlParser\Dom;
+        $dom->load($html);
+
+        $items = $dom->find('.table-participant > a');
+
+        foreach ($items as $item){
+
+            $item_url = $item->getAttribute('href');
+
+            if (strpos($item_url,'javascript:void(0);') !== false) continue;
+            if (strpos($item_url, 'inplay-odds') !== false) continue;
+
+            $item_name = $item->text; ?>
+
+            <a href="/oddsportal.com_parser/?sport_item=<?php echo $item_url; ?>&sport_id=<?php echo $sport_id; ?>"><?php echo $item_name; ?></a><br/>
+
+        <?php }
+
+
+
+
+
+
+
         //создаем новый урл исключительно для нужного дня
         $url = $this->createUrl($url, $forWhatDay);
 
         echo $url . "\n";
 
-        $date = $this->getDateForParse($forWhatDay, "day");
-
         $html = $this->getHtmlContentFromUrl($url);
 
-        $this->getArrayNamesOfCountry($html, $date);
+        echo $html;
 
         //получаем объект из всех актуальных событий
-        $object = $this->getHtmlObject($html, 'tbody > tr[data-dt]');
+        $object = $this->getHtmlObject($html, '.table-participant > a:last-child');
 
         $countEvents = count($object);
 
@@ -66,20 +105,23 @@ class BetexplorerComParser extends Parser
         //собираем все ссылки в единый массив
         for ($i = 0; $i < $countEvents; $i++) {
 
-            $dateOfEvent = $object[$i]->attr["data-dt"];
+            $partOfUrl = $object[$i]->attr["href"];
 
-            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
-
-            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
-                && $date === (int)$dateOfEvent
-            ) {
-
-                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
-
-                $arrayEventsUrls[] = 'http://www.' . $this->domain . $partOfUrl;
-
-            }
+//
+//            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
+//
+//            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
+//                && $date === (int)$dateOfEvent
+//            ) {
+//
+//                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
+//
+//                $arrayEventsUrls[] = 'http://www.' . $this->domain . $partOfUrl;
+//
+//            }
         }
+
+        die;
 
         return $arrayEventsUrls;
     }
@@ -129,8 +171,19 @@ class BetexplorerComParser extends Parser
     {
         // create url with need date
         if ($forWhatDay !== 1) {
-            $date = $this->getDateForUrl($forWhatDay);
-            $url .= "?year=" . $date["year"] . "&month=" . $date["month"] . "&day=" . $date["day"] . "";
+
+            // get year in format "2017"
+            $year = $this->getDateForParse($forWhatDay, "year");
+
+            // get number of month like "7" and check (add 0)
+            $month = $this->getDateForParse($forWhatDay, "month");
+            $month = ((int)$month < 10) ? "0" . $month : $month;
+
+            // get number of day like "31" and check (add 0)
+            $day = $this->getDateForParse($forWhatDay, "day");
+            $day = ((int)$day < 10) ? "0" . $day : $day;
+
+            $url .= $year . $month . $day . "/";
         }
 
         $this->newUrlOfCategory = $url;
@@ -360,7 +413,7 @@ class BetexplorerComParser extends Parser
 
         $part1 = html_entity_decode(trim($object[2]->plaintext));
         $part2 = html_entity_decode(trim($object[3]->plaintext));
-        $part2 = $this->deleteYears($part2);
+        $part2 = trim(str_replace(['2017/2018', '2017', '2016/2017', '2019', '2017/2018', '2018'], '', $part2));
 
         $object2 = $this->getHtmlObject($html, '.wrap-section__header__title > a');
         $dirtyPart3 = trim($object2[0]->plaintext);
@@ -586,13 +639,8 @@ class BetexplorerComParser extends Parser
         $putArray["link"] = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
 
         //получение айди-индекса с таблицы sport_county2 для столбца "id_sc"
-        if (strpos($event["link"], 'tennis') !== false) {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
-        } else {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
-        }
-
-        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $partLink);
+        $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
+        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $link);
         $putArray["id_sc"] = $arrayId[0]["id"];
 
         //проверка на дубли
@@ -601,10 +649,6 @@ class BetexplorerComParser extends Parser
         if (!$result) {
             //записываем все в бд
             $this->dbHelper->query("INSERT INTO tournament3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-        } else {
-            // если такая страна есть, то открываем ее для пользователей
-            $this->dbHelper->query("UPDATE tournament3 SET `hide`=0, `id_sc`=(?), `name`=(?) WHERE `link`=(?s)",
-                $putArray['id_sc'], $putArray['name'], $partLink);
         }
     }
 
@@ -612,23 +656,18 @@ class BetexplorerComParser extends Parser
     {
         $arrayPartsLink = explode('/', $event["link"]);
 
-        // проверка для событий тенниса. У них уникальность в ссылке происходит по 3ем частям, не по двум
-        // собираем нужную часть ссылки
-        if (strpos($event["link"], 'tennis') !== false) {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
-        } else {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
-        }
+        //собираем нужную часть ссылки
+        $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
 
         $putArray['link'] = $partLink;
         $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport3 WHERE name=(?s)", $event['type_sport'])[0]["id"];
         $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country'])[0]["id"];
 
-        // проверка на дубли
+        //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport_country3 WHERE link=(?s)", $partLink);
 
         if (!$result) {
-            // записываем все в бд
+            //записываем все в бд
             $this->dbHelper->query("INSERT INTO sport_country3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } else {
             // если такая страна есть, то открываем ее для пользователей
@@ -817,4 +856,75 @@ class BetexplorerComParser extends Parser
     {
         return $urlOnEvent;
     }
+
+    protected $sports_list = array(
+                    array(
+                    'name'=> 'Soccer',
+                    'url' => 'soccer',
+                    'id' => 1),
+                    array(
+                    'name'=> 'Tennis',
+                    'url' => 'tennis',
+                    'id' => 2),
+                    array(
+                    'name'=> 'Basketball',
+                    'url' => 'basketball',
+                    'id' => 3),
+                    array(
+                    'name'=> 'Hockey',
+                    'url' => 'hockey',
+                    'id' => 4),
+                    array(
+                    'name'=> 'Handball',
+                    'url' => 'handball',
+                    'id' => 7),
+                    array(
+                    'name'=> 'Baseball',
+                    'url' => 'baseball',
+                    'id' => 6),
+                    array(
+                    'name'=> 'American-football',
+                    'url' => 'american-football',
+                    'id' => 5),
+                    array(
+                    'name'=> 'Rugby-union',
+                    'url' => 'rugby-union',
+                    'id' => 8),
+                    array(
+                    'name'=> 'Volleyball',
+                    'url' => 'volleyball',
+                    'id' => 12),
+                    array(
+                    'name'=> 'Floorball',
+                    'url' => 'floorball',
+                    'id' => 9),
+                    array(
+                    'name'=> 'Bandy',
+                    'url' => 'bandy',
+                    'id' => 10),
+                    array(
+                    'name'=> 'Cricket',
+                    'url' => 'cricket',
+                    'id' => 13),
+                    array(
+                    'name'=> 'Snooker',
+                    'url' => 'snooker',
+                    'id' => 15),
+                    array(
+                    'name'=> 'Darts',
+                    'url' => 'darts',
+                    'id' => 14),
+                    array(
+                    'name'=> 'Badminton',
+                    'url' => 'badminton',
+                    'id' => 21),
+                    array(
+                    'name'=> 'Water-polo',
+                    'url' => 'water-polo',
+                    'id' => 22),
+                    array(
+                    'name'=> 'Esports',
+                    'url' => 'esports',
+                    'id' => 36),
+                );
 }

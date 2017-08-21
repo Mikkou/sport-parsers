@@ -1,16 +1,14 @@
 <?php
 
-namespace parsersPicksgrail\boards\betexplorercom;
+namespace parsersPicksgrail\boards\betbraincom;
 
 use parsersPicksgrail\Parser;
 
-class BetexplorerComParser extends Parser
+class BetbrainComParser extends Parser
 {
-    protected $newUrlOfCategory;
-
     protected $partHtml;
-
-    protected $forSearchCountry;
+    protected $hash = '3d4789a3abe84954b92889bf0bad28bb';
+    protected $jSessionId = 'A166C70D5C6B5CAB6765D89566F3B61A';
 
     function __construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper)
     {
@@ -20,313 +18,271 @@ class BetexplorerComParser extends Parser
     public function getCookies()
     {
         $cleanDomain = str_replace('.', '', $this->domain);
-
         $path = MAIN_DIR . "/boards/" . $cleanDomain . "/cookies.txt";
-
         return $path;
     }
 
     public function getHeaders()
     {
         $headers = [
-            'Accept:application/json, text/javascript, */*; q=0.01',
-            'Accept-Language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
-            'Connection:keep-alive',
-            'Cookie:js_cookie=1; my_cookie_id=68963694; my_cookie_hash=a3a6cff7d32019c6966525acd7de9e7d; my_timezone=+1; widget_timeStamp=1501437510; widget_pageViewCount=4; _ga=GA1.2.1926125207.1500904424; _gid=GA1.2.1158843575.1501358362',
-            'Host:www.betexplorer.com',
-            'Referer:http://www.betexplorer.com/tennis/challenger-men-singles/chengdu/barry-s-rawat-s/0KEQy1jk/',
-            'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36',
-            'X-Requested-With:XMLHttpRequest',
-            'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
+            ':authority:bbfeapi.betbrain.com',
+            ':method:GET',
+            ':scheme:https',
+            'accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'accept-language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
+            'cache-control:max-age=0',
+            'upgrade-insecure-requests:1',
+            'user-agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
+            'cookie: JSESSIONID=' . $this->jSessionId . '; gmtTimezoneOffset=0',
         ];
 
         return $headers;
     }
 
-    public function getUrlsOnEvents($url, $forWhatDay)
+    public function getUrlsOnEvents($typeSport, $forWhatDay)
     {
-        //создаем новый урл исключительно для нужного дня
-        $url = $this->createUrl($url, $forWhatDay);
+        $needDay = (int)$this->getDateForParse($forWhatDay, "day");
+        $arrayCountries = $this->getAllCountriesWithEvents($typeSport);
+        $arrayResultEventsUrls = [];
 
-        echo $url . "\n";
+        $arrayCountries = ['montenegro'];
 
-        $date = $this->getDateForParse($forWhatDay, "day");
+        $countCountries = count($arrayCountries);
+        echo $countCountries . " get countries from single sport. \n";
+        for ($i = 0; $i < $countCountries; $i++) {
 
-        $html = $this->getHtmlContentFromUrl($url);
+            $urlForGettingEventsFromCountry = 'https://bbfeapi.' . $this->domain . '/countryOverview/' .
+                $typeSport . '/' . $arrayCountries[$i] . '?requestId=5&wsTrack=' . $this->hash
+                . '&pageIndexStart=1&pageIndexEnd=2000&domain=www.' . $this->domain . '&method=get';
 
-        $this->getArrayNamesOfCountry($html, $date);
-
-        //получаем объект из всех актуальных событий
-        $object = $this->getHtmlObject($html, 'tbody > tr[data-dt]');
-
-        $countEvents = count($object);
-
-        $arrayEventsUrls = [];
-
-        //собираем все ссылки в единый массив
-        for ($i = 0; $i < $countEvents; $i++) {
-
-            $dateOfEvent = $object[$i]->attr["data-dt"];
-
-            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
-
-            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
-                && $date === (int)$dateOfEvent
-            ) {
-
-                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
-
-                $arrayEventsUrls[] = 'http://www.' . $this->domain . $partOfUrl;
-
+            $objectEvents = $this->getHtmlContentFromUrl($urlForGettingEventsFromCountry);
+            $arrayEvents = $objectEvents->data->eventListItems;
+            $countEvents = count($arrayEvents);
+            echo "\n" . ($i + 1) . " - " . $arrayCountries[$i];
+            for ($r = 0; $r < $countEvents; $r++) {
+                // get number of event day
+                $dayOfEvent = (int)explode('-', $arrayEvents[$r]->startDate)[2];
+                // filter events where not need day and not end
+                if (is_null($arrayEvents[$r]->scores) && $dayOfEvent === $needDay) {
+                    $numberEvent = $r;
+                    $numberCountry = $i;
+                    $urlOnEvent = $this->createUrlOnEvent($arrayEvents, $numberEvent, $typeSport, $arrayCountries, $numberCountry);
+                    $arrayResultEventsUrls[] = $urlOnEvent;
+                }
             }
         }
 
-        return $arrayEventsUrls;
+        return $arrayResultEventsUrls;
     }
 
-    protected function getArrayNamesOfCountry($html, $date)
+    protected function createUrlOnEvent($arrayEvents, $numberEvent, $typeSport, $arrayCountries, $numberCountry)
     {
-        $object = $this->getHtmlObject($html, '.table-matches > tbody > tr');
+        $tournamentName = $arrayEvents[$numberEvent]->urlTournamentName;
+        $matchName = $arrayEvents[$numberEvent]->urlMatchName;
+        $betTypeName = $arrayEvents[$numberEvent]->urlBetTypeName;
+        $eventPartName = $arrayEvents[$numberEvent]->urlEventPartName;
+        $urlOnEvent = 'https://www.' . $this->domain . '/' . $typeSport . '/' . $arrayCountries[$numberCountry] .
+            '/' . $tournamentName . '/' . $matchName . '/#/' . $betTypeName . '/' . $eventPartName . '/';
+        return $urlOnEvent;
+    }
 
-        $countEvents = count($object);
+    protected function getAllCountriesWithEvents($nameOfSport)
+    {
+        $urlForGettingCountries = 'https://bbfeapi.betbrain.com/sportOverview/' . $nameOfSport . '?requestId=5&wsTrack=' .
+            $this->hash . '&domain=www.' . $this->domain . '&method=get';
+        $jsonCountries = $this->getHtmlContentFromUrl($urlForGettingCountries);
+        $arrayCountries = [];
 
-        $arrayEventsUrls = [];
-
-        $country = '';
-
-        //собираем все ссылки в единый массив
-        for ($i = 0; $i < $countEvents; $i++) {
-
-            $dateOfEvent = $object[$i]->attr["data-dt"];
-
-            if ($object[$i]->attr["class"] === "js-tournament") {
-                $country = $object[$i]->children[0]->children[0]->children[0]->children[0]->attr["alt"];
-            }
-
-            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
-
-            $event = [];
-
-            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
-                && $date === (int)$dateOfEvent
-            ) {
-
-                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
-
-                $event[] = $country;
-                $event[] = 'http://www.' . $this->domain . $partOfUrl;
-
-                $arrayEventsUrls[] = $event;
-
+        if (array_key_exists('countryIdToCountryStatistics', $jsonCountries->data)) {
+            $objectCountries = $jsonCountries->data->countryIdToCountryStatistics;
+            foreach ($objectCountries as $key => $objectSingleCountry) {
+                $arrayCountries[] = $objectCountries->$key->urlCountryName;
             }
         }
 
-        $this->forSearchCountry = $arrayEventsUrls;
-
+        return $arrayCountries;
     }
 
-    protected function createUrl($url, $forWhatDay)
+    public function getHtmlContentFromUrl($parseUrl)
     {
-        // create url with need date
-        if ($forWhatDay !== 1) {
-            $date = $this->getDateForUrl($forWhatDay);
-            $url .= "?year=" . $date["year"] . "&month=" . $date["month"] . "&day=" . $date["day"] . "";
+        $headers = $this->getHeaders();
+
+        sleep(1);
+        $ch = curl_init($parseUrl);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $result = json_decode($result);
+
+        //формирование ответа
+        if ($httpCode === 301 || $httpCode === 302) {
+            //редиректы
+            echo "A redirect has occurred!\n";
+            return false;
+        } elseif ($httpCode === 404) {
+            //страницы не существует
+            return false;
+        } elseif ($httpCode === 200) {
+            return $result;
+        } else {
+            dump($httpCode);
+            dump($result);
+            $this->hash = $this->getHtmlContentFromUrl('https://bbfeapi.betbrain.com/httphs?method=get')->wsTrack;
+            die;
+            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
         }
-
-        $this->newUrlOfCategory = $url;
-
-        return $url;
     }
 
-    protected function getTime($html)
+    protected function getTime($jObj)
     {
-        $object = $this->getHtmlObject($html, '#match-date');
+        $resultTime = [];
 
-        $stringWithDate = $object[0]->attr['data-dt'];
-
-        $arrayDataDate = explode(',', $stringWithDate);
-
-        $beginDate = $this->getBeginDate($arrayDataDate);
-
-        $beginTime = $this->getBeginTime($arrayDataDate);
-
-        $resultTime["date_event"] = $this->checkDateAndTime($beginDate, $beginTime);
+        foreach ($jObj->data->event as $key => $obj) {
+            $resultTime["date_event"] = $obj->startTime;
+        }
 
         return $resultTime;
     }
 
-    /**
-     * преобразование года, месяца, дня, часа в соответствии с заданным таймаутом
-     * этот метод создан только из-за того, что не получается настроить куки для того, чтобы
-     * сайт сам отдавал нужные все данные о дате и времени. Поэтому делаем преобразование сами
-     * @param string $beginDate
-     * @param string  $beginTime
-     * @return string
-     */
-    private function checkDateAndTime($beginDate, $beginTime)
-    {
-        $needTime = $this->getTimeZone();
-
-        $fixTime = $needTime - 1;
-
-        $arrayPartsTime = explode(":", $beginTime);
-
-        // if need add hours
-        if ($fixTime >= 0) {
-
-            // modified format time if happened 24 number
-            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime ;
-
-            // if a lot happened fix time and date
-            if ((int)$arrayPartsTime[0] > 24) {
-
-                // get actual time on following day
-                $arrayPartsTime[0] = $arrayPartsTime[0] - 24;
-
-                $arrayPartsDate = explode("-", $beginDate);
-
-                // get separately month and year for check next
-                $month = $arrayPartsDate[1];
-                $year = $arrayPartsDate[0];
-
-                // get actual following day
-                $arrayPartsDate[2] = $arrayPartsDate[2] + 1;
-
-                // get count of days in month for check if we got the big number
-                $daysOfMonthForCheck = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-
-                // if big -> change number of month on next
-                if ($arrayPartsDate[2] > $daysOfMonthForCheck) {
-
-                    // number next month
-                    $arrayPartsDate[2] = $arrayPartsDate[2] - $daysOfMonthForCheck;
-
-                    $arrayPartsDate[1] = $arrayPartsDate[1] + 1;
-
-                    // if very big got number of month
-                    if ($arrayPartsDate[1] > 12) {
-
-                        $arrayPartsDate[1] = $arrayPartsDate[1] - 12;
-
-                        // refresh year
-                        $arrayPartsDate[0] = $arrayPartsDate[0] + 1;
-                    }
-                }
-
-                $beginDate = implode('-', $arrayPartsDate);
-
-            }
-
-            // if need reduce time
-        } else {
-            // if got number with minus change him on plus
-            $fixTime = -($fixTime);
-
-            // if we try take away from number which less than the deductible
-            if ($fixTime > $arrayPartsTime[0]) {
-
-                // learn the remainder of the subtraction for subtraction from the next day
-                $newFixTime = $fixTime - (int)$arrayPartsTime[0];
-
-                $arrayPartsTime[0] = 24 - $newFixTime;
-
-                $arrayPartsDate = explode("-", $beginDate);
-
-                // refresh day
-                $arrayPartsDate[2] = (int)$arrayPartsDate[2] - 1;
-
-                if ($arrayPartsDate[2] === 0) {
-
-                    $arrayPartsDate[1] = ($arrayPartsDate[1] - 1 === 0) ? 12 : $arrayPartsDate[1] - 1;
-
-                    $month = $arrayPartsDate[1];
-                    $year = $arrayPartsDate[0];
-
-                    $arrayPartsDate[2] = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-
-                }
-
-                $beginDate = implode("-", $arrayPartsDate);
-
-            } else {
-                $arrayPartsTime[0] = $arrayPartsTime[0] - $fixTime;
-            }
-        }
-
-        $arrayPartsTime[0] = ((int)$arrayPartsTime[0] < 10) ? "0" . $arrayPartsTime[0] : $arrayPartsTime[0];
-
-        $beginTime = implode(":", $arrayPartsTime);
-
-        return $beginDate . " " . $beginTime;
-
-    }
+//    /**
+//     * преобразование года, месяца, дня, часа в соответствии с заданным таймаутом
+//     * этот метод создан только из-за того, что не получается настроить куки для того, чтобы
+//     * сайт сам отдавал нужные все данные о дате и времени. Поэтому делаем преобразование сами
+//     * @param string $beginDate
+//     * @param string $beginTime
+//     * @return string
+//     */
+//    private function checkDateAndTime($beginDate, $beginTime)
+//    {
+//        $needTime = $this->getTimeZone();
+//
+//        $fixTime = $needTime - 1;
+//
+//        $arrayPartsTime = explode(":", $beginTime);
+//
+//        // if need add hours
+//        if ($fixTime >= 0) {
+//
+//            // modified format time if happened 24 number
+//            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime;
+//
+//            // if a lot happened fix time and date
+//            if ((int)$arrayPartsTime[0] > 24) {
+//
+//                // get actual time on following day
+//                $arrayPartsTime[0] = $arrayPartsTime[0] - 24;
+//
+//                $arrayPartsDate = explode("-", $beginDate);
+//
+//                // get separately month and year for check next
+//                $month = $arrayPartsDate[1];
+//                $year = $arrayPartsDate[0];
+//
+//                // get actual following day
+//                $arrayPartsDate[2] = $arrayPartsDate[2] + 1;
+//
+//                // get count of days in month for check if we got the big number
+//                $daysOfMonthForCheck = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+//
+//                // if big -> change number of month on next
+//                if ($arrayPartsDate[2] > $daysOfMonthForCheck) {
+//
+//                    // number next month
+//                    $arrayPartsDate[2] = $arrayPartsDate[2] - $daysOfMonthForCheck;
+//
+//                    $arrayPartsDate[1] = $arrayPartsDate[1] + 1;
+//
+//                    // if very big got number of month
+//                    if ($arrayPartsDate[1] > 12) {
+//
+//                        $arrayPartsDate[1] = $arrayPartsDate[1] - 12;
+//
+//                        // refresh year
+//                        $arrayPartsDate[0] = $arrayPartsDate[0] + 1;
+//                    }
+//                }
+//
+//                $beginDate = implode('-', $arrayPartsDate);
+//
+//            }
+//
+//            // if need reduce time
+//        } else {
+//            // if got number with minus change him on plus
+//            $fixTime = -($fixTime);
+//
+//            // if we try take away from number which less than the deductible
+//            if ($fixTime > $arrayPartsTime[0]) {
+//
+//                // learn the remainder of the subtraction for subtraction from the next day
+//                $newFixTime = $fixTime - (int)$arrayPartsTime[0];
+//
+//                $arrayPartsTime[0] = 24 - $newFixTime;
+//
+//                $arrayPartsDate = explode("-", $beginDate);
+//
+//                // refresh day
+//                $arrayPartsDate[2] = (int)$arrayPartsDate[2] - 1;
+//
+//                if ($arrayPartsDate[2] === 0) {
+//
+//                    $arrayPartsDate[1] = ($arrayPartsDate[1] - 1 === 0) ? 12 : $arrayPartsDate[1] - 1;
+//
+//                    $month = $arrayPartsDate[1];
+//                    $year = $arrayPartsDate[0];
+//
+//                    $arrayPartsDate[2] = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+//
+//                }
+//
+//                $beginDate = implode("-", $arrayPartsDate);
+//
+//            } else {
+//                $arrayPartsTime[0] = $arrayPartsTime[0] - $fixTime;
+//            }
+//        }
+//
+//        $arrayPartsTime[0] = ((int)$arrayPartsTime[0] < 10) ? "0" . $arrayPartsTime[0] : $arrayPartsTime[0];
+//
+//        $beginTime = implode(":", $arrayPartsTime);
+//
+//        return $beginDate . " " . $beginTime;
+//
+//    }
 
     protected function getBeginDate($arrayDataDate)
     {
-        //достаем год
-        $year = $arrayDataDate[2];
-
-        //достаем месяц
-        $month = $arrayDataDate[1];
-
-        //достаем день
-        $day = $arrayDataDate[0];
-
-        //собираем все в едино
-        $resultDate = $year . "-" . $month . "-" . $day;
-
-        return $resultDate;
+        return '';
     }
 
     protected function getBeginTime($arrayDataDate)
     {
-        $hour = $arrayDataDate[3];
-
-        $min = $arrayDataDate[4];
-
-        if (strlen($hour) === 1) {
-
-            $hour = "0" . $hour;
-
-        }
-
-        $time = $hour . ":" . $min;
-
-        $resultTime = $time . ":00";
-
-        return $resultTime;
+        return '';
     }
 
-    protected function getTypeSport($html)
+    protected function getTypeSport($obj)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $typeSport['type_sport'] = trim($object[1]->plaintext);
-
+        $typeSport['type_sport'] = $this->upperCamelCase(3);
         return $typeSport;
+    }
 
+    protected function upperCamelCase($index)
+    {
+        return ucwords(explode('/', $this->urlOnEvent)[$index]);
     }
 
     protected function getCountry($html)
     {
-        $country['name'] = $this->getCountryName($html);
-
-        $count = count($this->forSearchCountry);
-
-        $country = '';
-
-        // ищем название страны по урлу события
-        for ($i = 0; $i < $count; $i++ ) {
-
-            $url = $this->forSearchCountry[$i][1];
-
-            if ($url === $this->urlOnEvent) {
-                $country = $this->forSearchCountry[$i][0];
-            }
-        }
-
+        $country['name'] = $this->upperCamelCase(4);
         $resultArray['country'] = $country;
-
         return $resultArray;
     }
 
@@ -337,57 +293,23 @@ class BetexplorerComParser extends Parser
 
     protected function getCountryName($html)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $name = html_entity_decode(trim($object[2]->plaintext));
-
-        return $name;
+        return '';
     }
 
-    protected function getChampionship($html)
+    protected function getChampionship($obj)
     {
         $result = [];
-
-        //получение названия чемпионата
-        $result['name_tournament'] = $this->getChampionshipName($html);
-
+        $result['name_tournament'] = $this->getChampionshipName($obj);
         return $result;
     }
 
-    protected function getChampionshipName($html)
+    protected function getChampionshipName($obj)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $part1 = html_entity_decode(trim($object[2]->plaintext));
-        $part2 = html_entity_decode(trim($object[3]->plaintext));
-        $part2 = $this->deleteYears($part2);
-
-        $object2 = $this->getHtmlObject($html, '.wrap-section__header__title > a');
-        $dirtyPart3 = trim($object2[0]->plaintext);
-
-        if (strpos($dirtyPart3, ', ') !== false) {
-            $array = explode(', ', $dirtyPart3);
-            $part3 = $array[1];
-
-            // если перед двоеточием будет страна, то не добавляем ее в результат имени
-            if (strpos($part1, '-') !== false) {
-                $resultName = $part1 . ": " . $part2 . ", " . $part3;
-            } else {
-                $resultName = $part2 . ", " . $part3;
-            }
-
-        } else {
-
-            // если перед двоеточием будет страна, то не добавляем ее в результат имени
-            if (strpos($part1, '-') !== false) {
-                $resultName = $part1 . ": " . $part2;
-            } else {
-                $resultName = $part2;
-            }
-
+        $name = '';
+        foreach ($obj->data->parents as $key => $childObj) {
+            $name = trim(str_replace('1.', '', $this->deleteYears($childObj->name)));
         }
-
-        return $resultName;
+        return $name;
     }
 
     protected function getChampionshipId($html)
@@ -395,14 +317,13 @@ class BetexplorerComParser extends Parser
         return '';
     }
 
-    protected function getNameEvent($html)
+    protected function getNameEvent($obj)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $name = html_entity_decode(trim($object[4]->plaintext));
-
-        $nameEvent['name'] = $name;
-
+        $teams = [];
+        foreach ($obj->data->participant as $key => $childObj) {
+            $teams[] = $childObj->name;
+        }
+        $nameEvent['name'] = $teams[1] . ' vs ' . $teams[0];
         return $nameEvent;
     }
 
@@ -586,13 +507,8 @@ class BetexplorerComParser extends Parser
         $putArray["link"] = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
 
         //получение айди-индекса с таблицы sport_county2 для столбца "id_sc"
-        if (strpos($event["link"], 'tennis') !== false) {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
-        } else {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
-        }
-
-        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $partLink);
+        $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
+        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $link);
         $putArray["id_sc"] = $arrayId[0]["id"];
 
         //проверка на дубли
@@ -601,10 +517,6 @@ class BetexplorerComParser extends Parser
         if (!$result) {
             //записываем все в бд
             $this->dbHelper->query("INSERT INTO tournament3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-        } else {
-            // если такая страна есть, то открываем ее для пользователей
-            $this->dbHelper->query("UPDATE tournament3 SET `hide`=0, `id_sc`=(?), `name`=(?) WHERE `link`=(?s)",
-                $putArray['id_sc'], $putArray['name'], $partLink);
         }
     }
 
@@ -612,28 +524,22 @@ class BetexplorerComParser extends Parser
     {
         $arrayPartsLink = explode('/', $event["link"]);
 
-        // проверка для событий тенниса. У них уникальность в ссылке происходит по 3ем частям, не по двум
-        // собираем нужную часть ссылки
-        if (strpos($event["link"], 'tennis') !== false) {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
-        } else {
-            $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
-        }
+        //собираем нужную часть ссылки
+        $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
 
         $putArray['link'] = $partLink;
         $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport3 WHERE name=(?s)", $event['type_sport'])[0]["id"];
-        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country'])[0]["id"];
+        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country']['name'])[0]["id"];
 
-        // проверка на дубли
+        //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport_country3 WHERE link=(?s)", $partLink);
 
         if (!$result) {
-            // записываем все в бд
+            //записываем все в бд
             $this->dbHelper->query("INSERT INTO sport_country3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } else {
             // если такая страна есть, то открываем ее для пользователей
-            $this->dbHelper->query("UPDATE sport_country3 SET `hide`=0, `id_sport`=(?), `id_country`=(?) WHERE `link`=(?s)",
-                $putArray['id_sport'], $putArray['id_country'], $partLink);
+            $this->dbHelper->query("UPDATE sport_country3 SET `hide`=0 WHERE `link`=(?s)", $partLink);
         }
     }
 
@@ -746,7 +652,7 @@ class BetexplorerComParser extends Parser
 
     protected function putInCountry($event)
     {
-        $array["name"] = $event['country'];
+        $array = $event['country'];
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT name FROM country3 WHERE name=(?s)", $array["name"]);
@@ -810,11 +716,20 @@ class BetexplorerComParser extends Parser
         $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
 
         $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
-
     }
 
     protected function modifiedUrlOnEvent($urlOnEvent)
     {
-        return $urlOnEvent;
+        $arrayPartsUrl = explode('/', $urlOnEvent);
+        $sport = $arrayPartsUrl[3];
+        $country = $arrayPartsUrl[4];
+        $tournament = $arrayPartsUrl[5];
+        $match = $arrayPartsUrl[6];
+
+        $newUrl = 'https://bbfeapi.betbrain.com/eventOverview/' . $sport . '/' . $country
+            . '/' . $tournament . '/' . $match . '?requestId=9&wsTrack=' . $this->hash
+            . '&registeringForUpdates=true&domain=www.betbrain.com&method=get';
+
+        return $newUrl;
     }
 }

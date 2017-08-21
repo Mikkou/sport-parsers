@@ -13,6 +13,8 @@ require_once MAIN_DIR . '/helpers/DBHelper.php';
 //classes dask
 require_once MAIN_DIR . '/boards/devbmbetscom/DevBmbetsComParser.php';
 require_once MAIN_DIR . '/boards/betexplorercom/BetexplorerComParser.php';
+require_once MAIN_DIR . '/boards/betbraincom/BetbrainComParser.php';
+require_once MAIN_DIR . '/boards/oddsportalcom/OddsportalComParser.php';
 
 //libraries
 require_once MAIN_DIR . '/vendor/simplehtmldom/Simple_html_dom.php';
