@@ -33,6 +33,8 @@ abstract class Parser
         //цикл для кол-ва дней, за которое нужно распарсить
         for ($forWhatDay = 1; $forWhatDay <= $days; $forWhatDay++) {
 
+            $forWhatDay = 2;
+
             $start = microtime(true);
 
             $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
@@ -63,6 +65,8 @@ abstract class Parser
         $response = $this->getHtmlContentFromUrl($urlOnEvent);
         $url['link'] = $this->urlOnEvent;
         $time = $this->getTime($response);
+//        dump($time);
+//        die;
         $typeSport = $this->getTypeSport($response);
         $country = $this->getCountry($response);
         //получение имени чемпионата и его айди
@@ -78,11 +82,17 @@ abstract class Parser
         //проверка данных события
         $checkedArrayData = $this->checkEvent($response, $arrayMergesData);
         echo "parsed for " . round((microtime(true) - $start), 2) . " sec.\n";
+        dump($checkedArrayData);
+        die;
         return $checkedArrayData;
     }
 
-    public function getHtmlContentFromUrl($parseUrl, $headers = '')
+    public function getHtmlContentFromUrl($url, $headers = '')
     {
+        if (empty($url)) {
+            return '';
+        }
+
         if (!$headers) {
             $headers = $this->getHeaders();
         }
@@ -90,7 +100,7 @@ abstract class Parser
         $cookies = $this->getCookies();
 
         sleep(1);
-        $ch = curl_init($parseUrl);
+        $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
@@ -116,7 +126,7 @@ abstract class Parser
         } elseif ($httpCode === 200) {
             return $result;
         } else {
-            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
+            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($url, $cookies, $headers, $this->domain);
         }
     }
 

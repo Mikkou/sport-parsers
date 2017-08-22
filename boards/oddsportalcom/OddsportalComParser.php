@@ -37,175 +37,328 @@ class OddsportalComParser extends Parser
 
     public function getUrlsOnEvents($url, $forWhatDay)
     {
+        // get part of need date
         $date = $this->getDateForUrl($forWhatDay);
+        // join all together
         $date = $date["year"] . $date["month"] . $date["day"];
+        // http request
         $html = $this->getHtmlContentFromUrl($url . $date . '/');
+        // make http-header fro this site
+        $headers = ['Referer: ' . $url . $date . '/'];
+        // get id of sport
+        $needTypeSport = explode('/', $url)[4];
+        $sportId = $this->getSportId($needTypeSport);
 
-        $headers = array(
-            'Referer: ' . $url . '/' .$date.'/'
-        );
+        if (strpos($html, 'PageNextMatches') !== false) {
+            $re = '/PageNextMatches\((.+?)\)/';
+        } else if (strpos($html, 'PageEvent') !== false) {
+            $re = '/PageEvent\((.+?)\)/';
+        } else {
+            die('error get page hash!');
+        }
 
-        $sport_id = (int) $_GET['sport_id'];
-
-        $hash = get_hash($html);
-        $hash = urldecode($hash->xHashf->{$cur_date});
-
-        $html = get_web('http://fb.oddsportal.com/ajax-next-games/'.$sport_id.'/0/2/'.$cur_date.'/'.$hash.'.dat?_=1479303161702',false,$headers);
-
-        $re = '/(<table.+?>.+?<\\\\\/table>)/';
         preg_match($re, $html, $matches);
 
-        if (!isset($matches[1])){
+        if (!isset($matches[1])) {
+            die('error get page hash!');
+        }
+
+        $hash = json_decode($matches[1]);
+
+        $hash = urldecode($hash->xHashf->{$date});
+
+        $html = $this->getWeb('http://fb.oddsportal.com/ajax-next-games/' . $sportId . '/0/2/' . $date . '/' . $hash . '.dat?_=1479303161702', false, $headers);
+
+        $re = '/(<table.+?>.+?<\\\\\/table>)/';
+
+        preg_match($re, $html, $matches);
+
+        if (!isset($matches[1])) {
             die('error get matches table!');
         }
 
-        $html = str_replace('\"','"',$matches[1]);
-        $html = str_replace('\/','/',$html);
+        $html = str_replace('\"', '"', $matches[1]);
+        $html = str_replace('\/', '/', $html);
 
-        $dom = new PHPHtmlParser\Dom;
-        $dom->load($html);
+        $items = $this->getHtmlObject($html, '.table-participant > a');
 
-        $items = $dom->find('.table-participant > a');
+        $resultArray = [];
 
-        foreach ($items as $item){
+        foreach ($items as $item) {
 
             $item_url = $item->getAttribute('href');
 
-            if (strpos($item_url,'javascript:void(0);') !== false) continue;
-            if (strpos($item_url, 'inplay-odds') !== false) continue;
-
-            $item_name = $item->text; ?>
-
-            <a href="/oddsportal.com_parser/?sport_item=<?php echo $item_url; ?>&sport_id=<?php echo $sport_id; ?>"><?php echo $item_name; ?></a><br/>
-
-        <?php }
-
-
-
-
-
-
-
-        //создаем новый урл исключительно для нужного дня
-        $url = $this->createUrl($url, $forWhatDay);
-
-        echo $url . "\n";
-
-        $html = $this->getHtmlContentFromUrl($url);
-
-        echo $html;
-
-        //получаем объект из всех актуальных событий
-        $object = $this->getHtmlObject($html, '.table-participant > a:last-child');
-
-        $countEvents = count($object);
-
-        $arrayEventsUrls = [];
-
-        //собираем все ссылки в единый массив
-        for ($i = 0; $i < $countEvents; $i++) {
-
-            $partOfUrl = $object[$i]->attr["href"];
-
-//
-//            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
-//
-//            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
-//                && $date === (int)$dateOfEvent
-//            ) {
-//
-//                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
-//
-//                $arrayEventsUrls[] = 'http://www.' . $this->domain . $partOfUrl;
-//
-//            }
-        }
-
-        die;
-
-        return $arrayEventsUrls;
-    }
-
-    protected function getArrayNamesOfCountry($html, $date)
-    {
-        $object = $this->getHtmlObject($html, '.table-matches > tbody > tr');
-
-        $countEvents = count($object);
-
-        $arrayEventsUrls = [];
-
-        $country = '';
-
-        //собираем все ссылки в единый массив
-        for ($i = 0; $i < $countEvents; $i++) {
-
-            $dateOfEvent = $object[$i]->attr["data-dt"];
-
-            if ($object[$i]->attr["class"] === "js-tournament") {
-                $country = $object[$i]->children[0]->children[0]->children[0]->children[0]->attr["alt"];
+            if (strpos($item_url, 'javascript:void(0);') !== false) {
+                continue;
+            }
+            if (strpos($item_url, 'inplay-odds') !== false) {
+                continue;
             }
 
-            $resultsOfMatch = trim($object[$i]->children[2]->plaintext);
-
-            $event = [];
-
-            if (strpos($resultsOfMatch, ':') === false && strpos($resultsOfMatch, '.') === false
-                && $date === (int)$dateOfEvent
-            ) {
-
-                $partOfUrl = $object[$i]->children[0]->children[1]->attr['href'];
-
-                $event[] = $country;
-                $event[] = 'http://www.' . $this->domain . $partOfUrl;
-
-                $arrayEventsUrls[] = $event;
-
-            }
+            $resultArray[] = 'http://www.oddsportal.com' . $item_url;
         }
 
-        $this->forSearchCountry = $arrayEventsUrls;
-
+        return $resultArray;
     }
 
-    protected function createUrl($url, $forWhatDay)
+    protected function get_hash($html)
     {
-        // create url with need date
-        if ($forWhatDay !== 1) {
 
-            // get year in format "2017"
-            $year = $this->getDateForParse($forWhatDay, "year");
-
-            // get number of month like "7" and check (add 0)
-            $month = $this->getDateForParse($forWhatDay, "month");
-            $month = ((int)$month < 10) ? "0" . $month : $month;
-
-            // get number of day like "31" and check (add 0)
-            $day = $this->getDateForParse($forWhatDay, "day");
-            $day = ((int)$day < 10) ? "0" . $day : $day;
-
-            $url .= $year . $month . $day . "/";
+        if (strpos($html, 'PageNextMatches') !== false) {
+            $re = '/PageNextMatches\((.+?)\)/';
+        } else if (strpos($html, 'PageEvent') !== false) {
+            $re = '/PageEvent\((.+?)\);var menu_open/';
+        } else {
+            die('error get page hash!');
         }
 
-        $this->newUrlOfCategory = $url;
+        preg_match($re, $html, $matches);
 
-        return $url;
+        if (!isset($matches[1])) {
+            die('error get page hash!');
+        }
+
+        return json_decode($matches[1]);
+    }
+
+    protected function getSportId($needTypeSport)
+    {
+        $count = count($this->arraySpotsData);
+        $sportId = '';
+        for ($i = 0; $i < $count; $i++) {
+            $typeSport = $this->arraySpotsData[$i]["url"];
+            if ($typeSport === $needTypeSport) {
+                $sportId = $this->arraySpotsData[$i]["id"];
+            }
+        }
+        return $sportId;
+    }
+
+    protected function getWeb($url, $postFields = false, $headers = false)
+    {
+        if ($curl = curl_init()) {
+
+            $cookies = $this->getCookies();
+
+            curl_setopt($curl, CURLOPT_URL, $url);
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 1);
+            curl_setopt($curl, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:49.0) Gecko/20100101 Firefox/49.0');
+
+            if ($headers) {
+                curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+            }
+
+            if ($postFields) {
+                curl_setopt($curl, CURLOPT_POST, true);
+                curl_setopt($curl, CURLOPT_POSTFIELDS, $postFields);
+            }
+
+            curl_setopt($curl, CURLOPT_COOKIEFILE, $cookies);
+            curl_setopt($curl, CURLOPT_COOKIEJAR, $cookies);
+
+            $out = curl_exec($curl);
+
+            if (!$out) {
+                $GLOBALS['curl_last_error'] = curl_error($curl);
+                return false;
+            }
+
+            curl_close($curl);
+
+            return $out;
+
+        }
     }
 
     protected function getTime($html)
     {
-        $object = $this->getHtmlObject($html, '#match-date');
+        $item_url = str_replace('http://www.oddsportal.com', '', $this->urlOnEvent);
 
-        $stringWithDate = $object[0]->attr['data-dt'];
+        $sport_id = $this->getSportId(explode('/', $item_url)[1]);;
 
-        $arrayDataDate = explode(',', $stringWithDate);
+        $html = $this->getWeb('http://www.oddsportal.com' . $item_url);
 
-        $beginDate = $this->getBeginDate($arrayDataDate);
+        if (!$html) {
+            die('error get sport item!');
+        }
 
-        $beginTime = $this->getBeginTime($arrayDataDate);
+        $breadcrumb = $this->getHtmlObject($html, '#col-content > p');
 
-        $resultTime["date_event"] = $this->checkDateAndTime($beginDate, $beginTime);
+        $modifiedTime = str_replace(['date', 'datet', 't'], '', explode('-', $breadcrumb[0]->attr["class"])[0]);
+        $time = (int) trim($modifiedTime);
 
-        return $resultTime;
+        $breadcrumb = $this->getHtmlObject($html, '#breadcrumb > a');
+
+        $sport_name = $breadcrumb[1]->plaintext;
+        $sport_country = $breadcrumb[2]->plaintext;
+        $sport_match_name = $breadcrumb[3]->plaintext;
+
+        $hash = $this->get_hash($html);
+        $hash_id = $hash->id;
+        $hash_version_id = $hash->versionId;
+        $hash_xhash = urldecode($hash->xhash);
+        $bet_type = $this->get_default_bet_type($sport_id);
+        $_scope_id = $this->get_scope_id($sport_id, $bet_type);
+
+        $nameEvent = trim($hash->home) . ' - ' . trim($hash->away);
+
+        $headers = array(
+            'Referer: http://www.oddsportal.com' . $item_url
+        );
+
+        $html = $this->getWeb("http://fb.oddsportal.com/feed/match/$hash_version_id-$sport_id-$hash_id-$bet_type-$_scope_id-$hash_xhash.dat?_=1479583158479", false, $headers);
+
+        if (!$html) {
+            die('error get match odds array!');
+        }
+
+        $re = '/globals\.jsonpCallback\(.+?, (.+?)\);/';
+        preg_match($re, $html, $matches);
+
+        if (!isset($matches[1])) {
+            die('error parse match odds array!');
+        }
+
+        $match_odds = json_decode($matches[1]);
+
+        $resultArrayMarkets = [];
+
+        foreach ($match_odds->d->nav as $match_odd_id => $match_odd_value) {
+
+            $arrayMarkets["market_name"] = $this->get_betting_name($match_odd_id)['name'];
+
+            foreach ($match_odd_value as $match_scope_key => $match_scope_value){
+
+                $arrayMarkets["time_outs"][] = $this->get_scope_name($match_scope_key);
+
+            }
+
+            $resultArrayMarkets[] = $arrayMarkets;
+        }
+
+
+
+
+
+
+        dump($resultArrayMarkets);
+        die;
+
+        $resultArray["date_event"] = $time;
+        $resultArray["type_sport"] = $sport_name;
+        $resultArray["country"] = $sport_country;
+        $resultArray["name_tournament"] = $sport_match_name;
+        $resultArray["name"] = $nameEvent;
+
+        return $resultArray;
+    }
+
+    protected function get_betting_name($betting_id){
+
+        $betting_names = array(
+            "11" => array("name" => "Winner", "short-name" => "Winner", "position" => "0", "outright" => true),
+            "1" => array ("name" => "1X2", "short-name" => "1X2", "position" => "1", "outright" => false),
+            "3" => array ("name" => "Home/Away", "short-name" => "Home/Away", "position" => "2", "outright" => false),
+            "5" => array ("name" => "Asian Handicap", "short-name" => "AH", "position" => "3", "outright" => false),
+            "2" => array ("name" => "Over/Under", "short-name" => "O/U", "position" => "4", "outright" => false),
+            "6" => array("name" => "Draw No Bet", "short-name" => "DNB", "position" => "5", "outright" => false),
+            "12" => array ("name" => "European Handicap", "short-name" => "EH", "position" => "6", "outright" => false),
+            "4" => array ("name" => "Double Chance", "short-name" => "DC", "position" => "7", "outright" => false),
+            "7" => array ("name" => "To Qualify", "short-name" => "TQ", "position" => "8", "outright" => false),
+            "8" => array ("name" => "Correct Score", "short-name" => "CS", "position" => "9", "outright" => false),
+            "9" => array ("name" => "Half Time / Full Time", "short-name" => "HT/FT", "position" => "10", "outright" => false),
+            "10" => array ("name" => "Odd or Even", "short-name" => "O/E", "position" => "11", "outright" => false),
+            "13" => array ("name" => "Both Teams to Score", "short-name" => "BTS", "position" => "12", "outright" => false)
+        );
+
+        return $betting_names[$betting_id];
+    }
+
+    protected function get_scope_name($scope_id){
+        $scope_names = array(
+            "1" => "FT&nbsp;including&nbsp;OT",
+            "2" => "Full&nbsp;Time",
+            "3" => "1st&nbsp;Half",
+            "4" => "2nd&nbsp;Half",
+            "5" => "1st&nbsp;Period",
+            "6" => "2nd&nbsp;Period",
+            "7" => "3rd&nbsp;Period",
+            "8" => "1Q",
+            "9" => "2Q",
+            "10" => "3Q",
+            "11" => "4Q",
+            "12" => "1st&nbsp;Set",
+            "13" => "2nd&nbsp;Set",
+            "14" => "3rd&nbsp;Set",
+            "15" => "4th&nbsp;Set",
+            "16" => "5th&nbsp;Set",
+            "17" => "1st&nbsp;Inning",
+            "18" => "2nd&nbsp;Inning",
+            "19" => "3rd&nbsp;Inning",
+            "20" => "4th&nbsp;Inning",
+            "21" => "5th&nbsp;Inning",
+            "22" => "6th&nbsp;Inning",
+            "23" => "7th&nbsp;Inning",
+            "24" => "8th&nbsp;Inning",
+            "25" => "9th&nbsp;Inning",
+            "26" => "Next&nbsp;Set",
+            "27" => "Current&nbsp;Set",
+            "28" => "Next&nbsp;Game",
+            "29" => "Current&nbsp;Game"
+        );
+
+        return $scope_names[$scope_id];
+    }
+
+    protected function get_scope_id($sport_id, $bettingTypeId)
+    {
+
+        $sportBetTypeScopeId = array(
+            "4" => array("3" => 1),
+            "2" => array("1" => 2, "2" => 2, "3" => 2));
+        $betTypeScopeId = array("7" => 1);
+        $sportScopeId = array(
+            "3" => 1,
+            "5" => 1,
+            "6" => 1,
+            "13" => 1,
+            "18" => 1);
+
+        $scope = 2;
+
+        if (isset($sportBetTypeScopeId[$sport_id]) && $sportBetTypeScopeId[$sport_id][$bettingTypeId]) {
+            $scope = $sportBetTypeScopeId[$sport_id][$bettingTypeId];
+        } else if (isset($betTypeScopeId[$bettingTypeId])) {
+            $scope = $betTypeScopeId[$bettingTypeId];
+        } else if (isset($sportScopeId[$sport_id])) {
+            $scope = $sportScopeId[$sport_id];
+        }
+
+        return $scope;
+    }
+
+    protected function get_default_bet_type($sport_id)
+    {
+
+        $moneyLineSports = array(
+            '6' => 0,
+            '2' => 1,
+            '3' => 2,
+            '5' => 3,
+            '12' => 4,
+            '14' => 5,
+            '15' => 6,
+            '13' => 7,
+            '17' => 8,
+            '18' => 9,
+            '21"' => 10,
+            '28"' => 11,
+            '36' => 12
+        );
+
+        return (isset($moneyLineSports[$sport_id])) ? 3 : 1;
+
     }
 
     /**
@@ -213,7 +366,7 @@ class OddsportalComParser extends Parser
      * этот метод создан только из-за того, что не получается настроить куки для того, чтобы
      * сайт сам отдавал нужные все данные о дате и времени. Поэтому делаем преобразование сами
      * @param string $beginDate
-     * @param string  $beginTime
+     * @param string $beginTime
      * @return string
      */
     private function checkDateAndTime($beginDate, $beginTime)
@@ -228,7 +381,7 @@ class OddsportalComParser extends Parser
         if ($fixTime >= 0) {
 
             // modified format time if happened 24 number
-            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime ;
+            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime;
 
             // if a lot happened fix time and date
             if ((int)$arrayPartsTime[0] > 24) {
@@ -369,7 +522,7 @@ class OddsportalComParser extends Parser
         $country = '';
 
         // ищем название страны по урлу события
-        for ($i = 0; $i < $count; $i++ ) {
+        for ($i = 0; $i < $count; $i++) {
 
             $url = $this->forSearchCountry[$i][1];
 
@@ -854,77 +1007,94 @@ class OddsportalComParser extends Parser
 
     protected function modifiedUrlOnEvent($urlOnEvent)
     {
-        return $urlOnEvent;
+        return '';
     }
 
-    protected $sports_list = array(
-                    array(
-                    'name'=> 'Soccer',
-                    'url' => 'soccer',
-                    'id' => 1),
-                    array(
-                    'name'=> 'Tennis',
-                    'url' => 'tennis',
-                    'id' => 2),
-                    array(
-                    'name'=> 'Basketball',
-                    'url' => 'basketball',
-                    'id' => 3),
-                    array(
-                    'name'=> 'Hockey',
-                    'url' => 'hockey',
-                    'id' => 4),
-                    array(
-                    'name'=> 'Handball',
-                    'url' => 'handball',
-                    'id' => 7),
-                    array(
-                    'name'=> 'Baseball',
-                    'url' => 'baseball',
-                    'id' => 6),
-                    array(
-                    'name'=> 'American-football',
-                    'url' => 'american-football',
-                    'id' => 5),
-                    array(
-                    'name'=> 'Rugby-union',
-                    'url' => 'rugby-union',
-                    'id' => 8),
-                    array(
-                    'name'=> 'Volleyball',
-                    'url' => 'volleyball',
-                    'id' => 12),
-                    array(
-                    'name'=> 'Floorball',
-                    'url' => 'floorball',
-                    'id' => 9),
-                    array(
-                    'name'=> 'Bandy',
-                    'url' => 'bandy',
-                    'id' => 10),
-                    array(
-                    'name'=> 'Cricket',
-                    'url' => 'cricket',
-                    'id' => 13),
-                    array(
-                    'name'=> 'Snooker',
-                    'url' => 'snooker',
-                    'id' => 15),
-                    array(
-                    'name'=> 'Darts',
-                    'url' => 'darts',
-                    'id' => 14),
-                    array(
-                    'name'=> 'Badminton',
-                    'url' => 'badminton',
-                    'id' => 21),
-                    array(
-                    'name'=> 'Water-polo',
-                    'url' => 'water-polo',
-                    'id' => 22),
-                    array(
-                    'name'=> 'Esports',
-                    'url' => 'esports',
-                    'id' => 36),
-                );
+    protected $arraySpotsData = [
+        [
+            'name' => 'Soccer',
+            'url' => 'soccer',
+            'id' => 1
+        ],
+        [
+            'name' => 'Tennis',
+            'url' => 'tennis',
+            'id' => 2
+        ],
+        [
+            'name' => 'Basketball',
+            'url' => 'basketball',
+            'id' => 3
+        ],
+        [
+            'name' => 'Hockey',
+            'url' => 'hockey',
+            'id' => 4
+        ],
+        [
+            'name' => 'Handball',
+            'url' => 'handball',
+            'id' => 7
+        ],
+        [
+            'name' => 'Baseball',
+            'url' => 'baseball',
+            'id' => 6
+        ],
+        [
+            'name' => 'American-football',
+            'url' => 'american-football',
+            'id' => 5
+        ],
+        [
+            'name' => 'Rugby-union',
+            'url' => 'rugby-union',
+            'id' => 8
+        ],
+        [
+            'name' => 'Volleyball',
+            'url' => 'volleyball',
+            'id' => 12
+        ],
+        [
+            'name' => 'Floorball',
+            'url' => 'floorball',
+            'id' => 9
+        ],
+        [
+            'name' => 'Bandy',
+            'url' => 'bandy',
+            'id' => 10
+        ],
+        [
+            'name' => 'Cricket',
+            'url' => 'cricket',
+            'id' => 13
+        ],
+        [
+            'name' => 'Snooker',
+            'url' => 'snooker',
+            'id' => 15
+        ],
+        [
+            'name' => 'Darts',
+            'url' => 'darts',
+            'id' => 14
+        ],
+        [
+            'name' => 'Badminton',
+            'url' => 'badminton',
+            'id' => 21
+        ],
+        [
+            'name' => 'Water-polo',
+            'url' => 'water-polo',
+            'id' => 22
+        ],
+        [
+            'name' => 'Esports',
+            'url' => 'esports',
+            'id' => 36
+        ],
+    ];
 }
