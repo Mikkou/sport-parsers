@@ -33,8 +33,6 @@ abstract class Parser
         //цикл для кол-ва дней, за которое нужно распарсить
         for ($forWhatDay = 1; $forWhatDay <= $days; $forWhatDay++) {
 
-            $forWhatDay = 2;
-
             $start = microtime(true);
 
             $arrayUrls = $this->getUrlsOnEvents($this->urlOfCategory, $forWhatDay);
@@ -65,8 +63,6 @@ abstract class Parser
         $response = $this->getHtmlContentFromUrl($urlOnEvent);
         $url['link'] = $this->urlOnEvent;
         $time = $this->getTime($response);
-//        dump($time);
-//        die;
         $typeSport = $this->getTypeSport($response);
         $country = $this->getCountry($response);
         //получение имени чемпионата и его айди
@@ -82,8 +78,6 @@ abstract class Parser
         //проверка данных события
         $checkedArrayData = $this->checkEvent($response, $arrayMergesData);
         echo "parsed for " . round((microtime(true) - $start), 2) . " sec.\n";
-        dump($checkedArrayData);
-        die;
         return $checkedArrayData;
     }
 
@@ -144,7 +138,7 @@ abstract class Parser
         $this->putInEvent($event);
         //рынки
         $this->putInMarket($event);
-        //данные вида спорта
+        // data type of sport
         $this->putInSport($event);
         //
         $this->putInSportCountry($event);

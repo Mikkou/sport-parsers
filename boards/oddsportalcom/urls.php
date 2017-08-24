@@ -1,7 +1,6 @@
 <?php
 
 $urls = [
-
     "http://www.oddsportal.com/matches/soccer/",
     "http://www.oddsportal.com/matches/tennis/",
     "http://www.oddsportal.com/matches/basketball/",
@@ -22,5 +21,4 @@ $urls = [
     "http://www.oddsportal.com/matches/pesapallo/",
     "http://www.oddsportal.com/matches/esports/",
     "http://www.oddsportal.com/matches/mma/",
-
 ];

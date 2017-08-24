@@ -7,9 +7,7 @@ use parsersPicksgrail\Parser;
 class OddsportalComParser extends Parser
 {
     protected $newUrlOfCategory;
-
     protected $partHtml;
-
     protected $forSearchCountry;
 
     function __construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper)
@@ -20,9 +18,7 @@ class OddsportalComParser extends Parser
     public function getCookies()
     {
         $cleanDomain = str_replace('.', '', $this->domain);
-
         $path = MAIN_DIR . "/boards/" . $cleanDomain . "/cookies.txt";
-
         return $path;
     }
 
@@ -31,7 +27,6 @@ class OddsportalComParser extends Parser
         $headers = [
             'User-Agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.109 Safari/537.36',
         ];
-
         return $headers;
     }
 
@@ -41,6 +36,7 @@ class OddsportalComParser extends Parser
         $date = $this->getDateForUrl($forWhatDay);
         // join all together
         $date = $date["year"] . $date["month"] . $date["day"];
+        echo "\n" . $url . $date . '/';
         // http request
         $html = $this->getHtmlContentFromUrl($url . $date . '/');
         // make http-header fro this site
@@ -49,19 +45,14 @@ class OddsportalComParser extends Parser
         $needTypeSport = explode('/', $url)[4];
         $sportId = $this->getSportId($needTypeSport);
 
+        $re = '';
         if (strpos($html, 'PageNextMatches') !== false) {
             $re = '/PageNextMatches\((.+?)\)/';
         } else if (strpos($html, 'PageEvent') !== false) {
             $re = '/PageEvent\((.+?)\)/';
-        } else {
-            die('error get page hash!');
         }
 
         preg_match($re, $html, $matches);
-
-        if (!isset($matches[1])) {
-            die('error get page hash!');
-        }
 
         $hash = json_decode($matches[1]);
 
@@ -73,8 +64,8 @@ class OddsportalComParser extends Parser
 
         preg_match($re, $html, $matches);
 
-        if (!isset($matches[1])) {
-            die('error get matches table!');
+        if (!$matches) {
+            return [];
         }
 
         $html = str_replace('\"', '"', $matches[1]);
@@ -103,20 +94,14 @@ class OddsportalComParser extends Parser
 
     protected function get_hash($html)
     {
-
+        $re = '';
         if (strpos($html, 'PageNextMatches') !== false) {
             $re = '/PageNextMatches\((.+?)\)/';
         } else if (strpos($html, 'PageEvent') !== false) {
             $re = '/PageEvent\((.+?)\);var menu_open/';
-        } else {
-            die('error get page hash!');
         }
 
         preg_match($re, $html, $matches);
-
-        if (!isset($matches[1])) {
-            die('error get page hash!');
-        }
 
         return json_decode($matches[1]);
     }
@@ -167,7 +152,6 @@ class OddsportalComParser extends Parser
             curl_close($curl);
 
             return $out;
-
         }
     }
 
@@ -177,24 +161,20 @@ class OddsportalComParser extends Parser
 
         $sport_id = $this->getSportId(explode('/', $item_url)[1]);;
 
-        $html = $this->getWeb('http://www.oddsportal.com' . $item_url);
+        $htmlOdd = $this->getWeb('http://www.oddsportal.com' . $item_url);
 
-        if (!$html) {
-            die('error get sport item!');
-        }
-
-        $breadcrumb = $this->getHtmlObject($html, '#col-content > p');
+        $breadcrumb = $this->getHtmlObject($htmlOdd, '#col-content > p');
 
         $modifiedTime = str_replace(['date', 'datet', 't'], '', explode('-', $breadcrumb[0]->attr["class"])[0]);
-        $time = (int) trim($modifiedTime);
+        $time = trim(date('Y-m-d H:i:s', $modifiedTime));
 
-        $breadcrumb = $this->getHtmlObject($html, '#breadcrumb > a');
+        $breadcrumb = $this->getHtmlObject($htmlOdd, '#breadcrumb > a');
 
         $sport_name = $breadcrumb[1]->plaintext;
         $sport_country = $breadcrumb[2]->plaintext;
         $sport_match_name = $breadcrumb[3]->plaintext;
 
-        $hash = $this->get_hash($html);
+        $hash = $this->get_hash($htmlOdd);
         $hash_id = $hash->id;
         $hash_version_id = $hash->versionId;
         $hash_xhash = urldecode($hash->xhash);
@@ -203,110 +183,151 @@ class OddsportalComParser extends Parser
 
         $nameEvent = trim($hash->home) . ' - ' . trim($hash->away);
 
-        $headers = array(
-            'Referer: http://www.oddsportal.com' . $item_url
-        );
+        $headers = ['Referer: http://www.oddsportal.com' . $item_url];
 
         $html = $this->getWeb("http://fb.oddsportal.com/feed/match/$hash_version_id-$sport_id-$hash_id-$bet_type-$_scope_id-$hash_xhash.dat?_=1479583158479", false, $headers);
-
-        if (!$html) {
-            die('error get match odds array!');
-        }
 
         $re = '/globals\.jsonpCallback\(.+?, (.+?)\);/';
         preg_match($re, $html, $matches);
 
-        if (!isset($matches[1])) {
-            die('error parse match odds array!');
-        }
-
         $match_odds = json_decode($matches[1]);
-
         $resultArrayMarkets = [];
 
-        foreach ($match_odds->d->nav as $match_odd_id => $match_odd_value) {
-
-            $arrayMarkets["market_name"] = $this->get_betting_name($match_odd_id)['name'];
-
-            foreach ($match_odd_value as $match_scope_key => $match_scope_value){
-
-                $arrayMarkets["time_outs"][] = $this->get_scope_name($match_scope_key);
-
+        if (array_key_exists('nav', $match_odds->d)) {
+            foreach ($match_odds->d->nav as $match_odd_id => $match_odd_value) {
+                $arrayMarkets["market_name"] = $this->get_betting_name($match_odd_id)['name'];
+                $arrayMarkets["market_id"] = $match_odd_id;
+                $arrayMarkets["time_outs"] = [];
+                foreach ($match_odd_value as $match_scope_key => $match_scope_value) {
+                    $timeOutName = $this->get_scope_name($match_scope_key);
+                    if (!in_array($timeOutName, $arrayMarkets["time_outs"])) {
+                        $arrayMarkets["time_outs"][] = $timeOutName;
+                    }
+                }
+                $resultArrayMarkets[] = $arrayMarkets;
             }
-
-            $resultArrayMarkets[] = $arrayMarkets;
         }
 
+        /// >>>>> get all bookmakers
+//        $item_url = $_GET['sport_item'];
+//        $sport_id = (int)$_GET['sport_id'];
+//        $bet_type = (int)$_GET['match_odd_id'];
 
+//        $html = get_web('http://www.oddsportal.com' . $item_url);
 
+        $hash = $this->get_hash($htmlOdd);
+        $hash_id = $hash->id;
+        $hash_version_id = $hash->versionId;
+        $hash_xhash = urldecode($hash->xhash);
 
+//        $_scope_id = 2;
+//        if (isset($_GET['match_scope_id'])) {
+//            $_scope_id = (int)$_GET['match_scope_id'];
+//        } else {
+//            $_scope_id = get_scope_id($sport_id, $bet_type);
+//        }
 
+//        $headers = array(
+//            'Referer: http://www.oddsportal.com' . $item_url
+//        );
 
-        dump($resultArrayMarkets);
-        die;
+        $html = $this->getWeb('http://www.oddsportal.com/res/x/bookies-161111135702-1479567712.js', false, $headers);
+
+        $re = '/var bookmakersData=(.+?);/';
+
+        preg_match($re, $html, $matches);
+
+        $bookmakers_data = json_decode($matches[1]);
+
+//        $html = $this->getWeb("http://fb.oddsportal.com/feed/match/$hash_version_id-$sport_id-$hash_id-$bet_type-$_scope_id-$hash_xhash.dat?_=1479583158479", false, $headers);
+//
+//        if (!$html) {
+//            die('error get match odds array!');
+//        }
+//
+//        $re = '/globals\.jsonpCallback\(.+?, (.+?)\);/';
+//        preg_match($re, $html, $matches);
+//
+//        if (!isset($matches[1])) {
+//            die('error parse match odds array!');
+//        }
+//
+//        $match_odds = json_decode($matches[1]);
+
+        $arrayBookmakers = [];
+        foreach ($bookmakers_data as $id => $objectWithName) {
+            $array["name"] = $objectWithName->WebName;
+            $array["id"] = (int)$id;
+            $arrayBookmakers[] = $array;
+        }
+        /// <<<< eng getting all bookmakers
 
         $resultArray["date_event"] = $time;
         $resultArray["type_sport"] = $sport_name;
         $resultArray["country"] = $sport_country;
         $resultArray["name_tournament"] = $sport_match_name;
         $resultArray["name"] = $nameEvent;
+        $resultArray["markets"] = $resultArrayMarkets;
+        $resultArray["bookmakers"] = $arrayBookmakers;
 
         return $resultArray;
     }
 
-    protected function get_betting_name($betting_id){
+    protected function get_betting_name($betting_id)
+    {
 
         $betting_names = array(
             "11" => array("name" => "Winner", "short-name" => "Winner", "position" => "0", "outright" => true),
-            "1" => array ("name" => "1X2", "short-name" => "1X2", "position" => "1", "outright" => false),
-            "3" => array ("name" => "Home/Away", "short-name" => "Home/Away", "position" => "2", "outright" => false),
-            "5" => array ("name" => "Asian Handicap", "short-name" => "AH", "position" => "3", "outright" => false),
-            "2" => array ("name" => "Over/Under", "short-name" => "O/U", "position" => "4", "outright" => false),
+            "1" => array("name" => "1X2", "short-name" => "1X2", "position" => "1", "outright" => false),
+            "3" => array("name" => "Home/Away", "short-name" => "Home/Away", "position" => "2", "outright" => false),
+            "5" => array("name" => "Asian Handicap", "short-name" => "AH", "position" => "3", "outright" => false),
+            "2" => array("name" => "Over/Under", "short-name" => "O/U", "position" => "4", "outright" => false),
             "6" => array("name" => "Draw No Bet", "short-name" => "DNB", "position" => "5", "outright" => false),
-            "12" => array ("name" => "European Handicap", "short-name" => "EH", "position" => "6", "outright" => false),
-            "4" => array ("name" => "Double Chance", "short-name" => "DC", "position" => "7", "outright" => false),
-            "7" => array ("name" => "To Qualify", "short-name" => "TQ", "position" => "8", "outright" => false),
-            "8" => array ("name" => "Correct Score", "short-name" => "CS", "position" => "9", "outright" => false),
-            "9" => array ("name" => "Half Time / Full Time", "short-name" => "HT/FT", "position" => "10", "outright" => false),
-            "10" => array ("name" => "Odd or Even", "short-name" => "O/E", "position" => "11", "outright" => false),
-            "13" => array ("name" => "Both Teams to Score", "short-name" => "BTS", "position" => "12", "outright" => false)
+            "12" => array("name" => "European Handicap", "short-name" => "EH", "position" => "6", "outright" => false),
+            "4" => array("name" => "Double Chance", "short-name" => "DC", "position" => "7", "outright" => false),
+            "7" => array("name" => "To Qualify", "short-name" => "TQ", "position" => "8", "outright" => false),
+            "8" => array("name" => "Correct Score", "short-name" => "CS", "position" => "9", "outright" => false),
+            "9" => array("name" => "Half Time / Full Time", "short-name" => "HT/FT", "position" => "10", "outright" => false),
+            "10" => array("name" => "Odd or Even", "short-name" => "O/E", "position" => "11", "outright" => false),
+            "13" => array("name" => "Both Teams to Score", "short-name" => "BTS", "position" => "12", "outright" => false)
         );
 
         return $betting_names[$betting_id];
     }
 
-    protected function get_scope_name($scope_id){
-        $scope_names = array(
-            "1" => "FT&nbsp;including&nbsp;OT",
-            "2" => "Full&nbsp;Time",
-            "3" => "1st&nbsp;Half",
-            "4" => "2nd&nbsp;Half",
-            "5" => "1st&nbsp;Period",
-            "6" => "2nd&nbsp;Period",
-            "7" => "3rd&nbsp;Period",
+    protected function get_scope_name($scope_id)
+    {
+        $scope_names = [
+            "1" => "FT including OT",
+            "2" => "Full Time",
+            "3" => "1st Half",
+            "4" => "2nd Half",
+            "5" => "1st Period",
+            "6" => "2nd Period",
+            "7" => "3rd Period",
             "8" => "1Q",
             "9" => "2Q",
             "10" => "3Q",
             "11" => "4Q",
-            "12" => "1st&nbsp;Set",
-            "13" => "2nd&nbsp;Set",
-            "14" => "3rd&nbsp;Set",
-            "15" => "4th&nbsp;Set",
-            "16" => "5th&nbsp;Set",
-            "17" => "1st&nbsp;Inning",
-            "18" => "2nd&nbsp;Inning",
-            "19" => "3rd&nbsp;Inning",
-            "20" => "4th&nbsp;Inning",
-            "21" => "5th&nbsp;Inning",
-            "22" => "6th&nbsp;Inning",
-            "23" => "7th&nbsp;Inning",
-            "24" => "8th&nbsp;Inning",
-            "25" => "9th&nbsp;Inning",
-            "26" => "Next&nbsp;Set",
-            "27" => "Current&nbsp;Set",
-            "28" => "Next&nbsp;Game",
-            "29" => "Current&nbsp;Game"
-        );
+            "12" => "1st Set",
+            "13" => "2nd Set",
+            "14" => "3rd Set",
+            "15" => "4th Set",
+            "16" => "5th Set",
+            "17" => "1st Inning",
+            "18" => "2nd Inning",
+            "19" => "3rd Inning",
+            "20" => "4th& Inning",
+            "21" => "5th Inning",
+            "22" => "6th Inning",
+            "23" => "7th Inning",
+            "24" => "8th Inning",
+            "25" => "9th Inning",
+            "26" => "Next Set",
+            "27" => "Current Set",
+            "28" => "Next Game",
+            "29" => "Current Game"
+        ];
 
         return $scope_names[$scope_id];
     }
@@ -327,7 +348,7 @@ class OddsportalComParser extends Parser
 
         $scope = 2;
 
-        if (isset($sportBetTypeScopeId[$sport_id]) && $sportBetTypeScopeId[$sport_id][$bettingTypeId]) {
+        if (isset($sportBetTypeScopeId[$sport_id]) && isset($sportBetTypeScopeId[$sport_id][$bettingTypeId])) {
             $scope = $sportBetTypeScopeId[$sport_id][$bettingTypeId];
         } else if (isset($betTypeScopeId[$bettingTypeId])) {
             $scope = $betTypeScopeId[$bettingTypeId];
@@ -361,179 +382,24 @@ class OddsportalComParser extends Parser
 
     }
 
-    /**
-     * преобразование года, месяца, дня, часа в соответствии с заданным таймаутом
-     * этот метод создан только из-за того, что не получается настроить куки для того, чтобы
-     * сайт сам отдавал нужные все данные о дате и времени. Поэтому делаем преобразование сами
-     * @param string $beginDate
-     * @param string $beginTime
-     * @return string
-     */
-    private function checkDateAndTime($beginDate, $beginTime)
-    {
-        $needTime = $this->getTimeZone();
-
-        $fixTime = $needTime - 1;
-
-        $arrayPartsTime = explode(":", $beginTime);
-
-        // if need add hours
-        if ($fixTime >= 0) {
-
-            // modified format time if happened 24 number
-            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime;
-
-            // if a lot happened fix time and date
-            if ((int)$arrayPartsTime[0] > 24) {
-
-                // get actual time on following day
-                $arrayPartsTime[0] = $arrayPartsTime[0] - 24;
-
-                $arrayPartsDate = explode("-", $beginDate);
-
-                // get separately month and year for check next
-                $month = $arrayPartsDate[1];
-                $year = $arrayPartsDate[0];
-
-                // get actual following day
-                $arrayPartsDate[2] = $arrayPartsDate[2] + 1;
-
-                // get count of days in month for check if we got the big number
-                $daysOfMonthForCheck = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-
-                // if big -> change number of month on next
-                if ($arrayPartsDate[2] > $daysOfMonthForCheck) {
-
-                    // number next month
-                    $arrayPartsDate[2] = $arrayPartsDate[2] - $daysOfMonthForCheck;
-
-                    $arrayPartsDate[1] = $arrayPartsDate[1] + 1;
-
-                    // if very big got number of month
-                    if ($arrayPartsDate[1] > 12) {
-
-                        $arrayPartsDate[1] = $arrayPartsDate[1] - 12;
-
-                        // refresh year
-                        $arrayPartsDate[0] = $arrayPartsDate[0] + 1;
-                    }
-                }
-
-                $beginDate = implode('-', $arrayPartsDate);
-
-            }
-
-            // if need reduce time
-        } else {
-            // if got number with minus change him on plus
-            $fixTime = -($fixTime);
-
-            // if we try take away from number which less than the deductible
-            if ($fixTime > $arrayPartsTime[0]) {
-
-                // learn the remainder of the subtraction for subtraction from the next day
-                $newFixTime = $fixTime - (int)$arrayPartsTime[0];
-
-                $arrayPartsTime[0] = 24 - $newFixTime;
-
-                $arrayPartsDate = explode("-", $beginDate);
-
-                // refresh day
-                $arrayPartsDate[2] = (int)$arrayPartsDate[2] - 1;
-
-                if ($arrayPartsDate[2] === 0) {
-
-                    $arrayPartsDate[1] = ($arrayPartsDate[1] - 1 === 0) ? 12 : $arrayPartsDate[1] - 1;
-
-                    $month = $arrayPartsDate[1];
-                    $year = $arrayPartsDate[0];
-
-                    $arrayPartsDate[2] = cal_days_in_month(CAL_GREGORIAN, $month, $year);
-
-                }
-
-                $beginDate = implode("-", $arrayPartsDate);
-
-            } else {
-                $arrayPartsTime[0] = $arrayPartsTime[0] - $fixTime;
-            }
-        }
-
-        $arrayPartsTime[0] = ((int)$arrayPartsTime[0] < 10) ? "0" . $arrayPartsTime[0] : $arrayPartsTime[0];
-
-        $beginTime = implode(":", $arrayPartsTime);
-
-        return $beginDate . " " . $beginTime;
-
-    }
-
     protected function getBeginDate($arrayDataDate)
     {
-        //достаем год
-        $year = $arrayDataDate[2];
-
-        //достаем месяц
-        $month = $arrayDataDate[1];
-
-        //достаем день
-        $day = $arrayDataDate[0];
-
-        //собираем все в едино
-        $resultDate = $year . "-" . $month . "-" . $day;
-
-        return $resultDate;
+        return [];
     }
 
     protected function getBeginTime($arrayDataDate)
     {
-        $hour = $arrayDataDate[3];
-
-        $min = $arrayDataDate[4];
-
-        if (strlen($hour) === 1) {
-
-            $hour = "0" . $hour;
-
-        }
-
-        $time = $hour . ":" . $min;
-
-        $resultTime = $time . ":00";
-
-        return $resultTime;
+        return [];
     }
 
     protected function getTypeSport($html)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $typeSport['type_sport'] = trim($object[1]->plaintext);
-
-        return $typeSport;
-
+        return [];
     }
 
     protected function getCountry($html)
     {
-        $country['name'] = $this->getCountryName($html);
-
-        $count = count($this->forSearchCountry);
-
-        $country = '';
-
-        // ищем название страны по урлу события
-        for ($i = 0; $i < $count; $i++) {
-
-            $url = $this->forSearchCountry[$i][1];
-
-            if ($url === $this->urlOnEvent) {
-                $country = $this->forSearchCountry[$i][0];
-            }
-        }
-
-        $resultArray['country'] = $country;
-
-        return $resultArray;
+        return [];
     }
 
     protected function getCountryCss($html)
@@ -543,57 +409,17 @@ class OddsportalComParser extends Parser
 
     protected function getCountryName($html)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $name = html_entity_decode(trim($object[2]->plaintext));
-
-        return $name;
+        return [];
     }
 
     protected function getChampionship($html)
     {
-        $result = [];
-
-        //получение названия чемпионата
-        $result['name_tournament'] = $this->getChampionshipName($html);
-
-        return $result;
+        return [];
     }
 
     protected function getChampionshipName($html)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $part1 = html_entity_decode(trim($object[2]->plaintext));
-        $part2 = html_entity_decode(trim($object[3]->plaintext));
-        $part2 = trim(str_replace(['2017/2018', '2017', '2016/2017', '2019', '2017/2018', '2018'], '', $part2));
-
-        $object2 = $this->getHtmlObject($html, '.wrap-section__header__title > a');
-        $dirtyPart3 = trim($object2[0]->plaintext);
-
-        if (strpos($dirtyPart3, ', ') !== false) {
-            $array = explode(', ', $dirtyPart3);
-            $part3 = $array[1];
-
-            // если перед двоеточием будет страна, то не добавляем ее в результат имени
-            if (strpos($part1, '-') !== false) {
-                $resultName = $part1 . ": " . $part2 . ", " . $part3;
-            } else {
-                $resultName = $part2 . ", " . $part3;
-            }
-
-        } else {
-
-            // если перед двоеточием будет страна, то не добавляем ее в результат имени
-            if (strpos($part1, '-') !== false) {
-                $resultName = $part1 . ": " . $part2;
-            } else {
-                $resultName = $part2;
-            }
-
-        }
-
-        return $resultName;
+        return [];
     }
 
     protected function getChampionshipId($html)
@@ -603,181 +429,17 @@ class OddsportalComParser extends Parser
 
     protected function getNameEvent($html)
     {
-        $object = $this->getHtmlObject($html, '.list-breadcrumb > li');
-
-        $name = html_entity_decode(trim($object[4]->plaintext));
-
-        $nameEvent['name'] = $name;
-
-        return $nameEvent;
-    }
-
-    protected function getHtmlOfMarketsAndBookmakers()
-    {
-        $arrayPartsUrl = explode('/', $this->urlOnEvent);
-
-        // this for request to get names markets
-        if (strpos($this->urlOnEvent, '/baseball/') !== false || strpos($this->urlOnEvent, '/volleyball/')
-            !== false || strpos($this->urlOnEvent, '/basketball/') !== false
-            || strpos($this->urlOnEvent, '/tennis/') !== false
-        ) {
-
-            $idMarket = 'ha';
-
-        } else {
-
-            $idMarket = '1x2';
-
-        }
-
-        $requestUrl = 'http://www.' . $this->domain . '/gres/ajax/matchodds.php?p=0&e=' . $arrayPartsUrl[7] . '&b=' . $idMarket;
-
-        $json = $this->getHtmlContentFromUrl($requestUrl);
-
-        $partHtml = json_decode($json);
-
-        return $partHtml;
+        return [];
     }
 
     public function getMarkets($html)
     {
-        // here we can get html where save data about markets
-        $this->partHtml = $this->getHtmlOfMarketsAndBookmakers();
-
-        // try get name and id of markets
-        $arrayWrongJson = explode('<div class="wrap-header">', $this->partHtml->odds);
-
-        $arrayTagsLi = explode('</li>', $arrayWrongJson[0]);
-
-        $count = count($arrayTagsLi);
-
-        $resultArray = [];
-
-        for ($i = 0; $i < $count; $i++) {
-
-            $arraySingleMarket = [];
-
-            $dirtyTestForSearch = $arrayTagsLi[$i];
-
-            if (strlen($dirtyTestForSearch) < 50) {
-                continue;
-            }
-
-            $arraySingleMarket['market_name'] = $this->getMarketName($dirtyTestForSearch);
-
-            $arraySingleMarket['code'] = $this->getMarketId($dirtyTestForSearch);
-
-            // don't parse wrong markets
-            if (empty($arraySingleMarket['code'])) {
-                continue;
-            }
-
-            $resultArray[] = $arraySingleMarket;
-
-        }
-
-        $resultArrayMarkets['markets'] = $resultArray;
-
-        return $resultArrayMarkets;
-
-    }
-
-    protected function getMarketName($dirtyTestForSearch)
-    {
-        $dirtyText = trim(strip_tags($dirtyTestForSearch));
-
-        $arrayPartsOfName = explode(' ', $dirtyText);
-
-        // this check for one market which name two word in name
-        if ($arrayPartsOfName[0] === "1X2" && $arrayPartsOfName[1] === "Odds") {
-
-            return "1X2 Odds";
-
-        } else {
-
-            return $arrayPartsOfName[0];
-
-        }
-    }
-
-    protected function getMarketId($dirtyTestForSearch)
-    {
-        $arrayPartsText = explode(", '", $dirtyTestForSearch);
-
-        if (array_key_exists(2, $arrayPartsText)) {
-
-            $id = str_replace("'", "", $arrayPartsText[2]);
-
-        } else {
-
-            $id = '';
-
-        }
-
-        return $id;
+        return [];
     }
 
     public function getBookmakers($html)
     {
-        $arrayPartsHtml = explode('<tr', $this->partHtml->odds);
-
-        $arrayBookmakers = [];
-
-        $count = count($arrayPartsHtml);
-
-        // cleaning and search need data
-        for ($i = 0; $i < $count; $i++) {
-
-            $dirtyText = $arrayPartsHtml[$i];
-
-            if (strlen($dirtyText) < 2000 && strpos($dirtyText, "data-bid") !== false) {
-
-                $arrayWithName = explode("'event-name': '", $dirtyText);
-
-                $arrayWithName2 = explode("', '", $arrayWithName[1]);
-
-                $cleanName = $arrayWithName2[0];
-
-                $arrayBookmakers[]["name"] = $cleanName;
-
-            }
-        }
-
-        $resultArray["bookmakers"] = $arrayBookmakers;
-
-        return $resultArray;
-    }
-
-    protected function getJsonBookmakers($html)
-    {
-        $array1 = explode('Global.Bookmakers =  ', $html);
-
-        $array2 = explode('Global.OddFormat = 0;', $array1[1]);
-
-        $json = str_replace(';', '', trim($array2[0]));
-
-        return $json;
-    }
-
-    protected function getTimeOuts($data)
-    {
-        $resultArray = [];
-
-        $count = count($data->t);
-
-        for ($i = 0; $i < $count; $i++) {
-
-            $singleTimeOut = [];
-
-            $singleTimeOut["time_out_name"] = trim($data->t[$i]->n);
-
-            $singleTimeOut["time_out_id"] = trim($data->t[$i]->id);
-
-            $resultArray[] = $singleTimeOut;
-
-        }
-
-        return $resultArray;
+        return [];
     }
 
     protected function putInTournament($event)
@@ -791,17 +453,17 @@ class OddsportalComParser extends Parser
         //собираем нужную часть ссылки
         $putArray["link"] = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
 
-        //получение айди-индекса с таблицы sport_county2 для столбца "id_sc"
+        //получение айди-индекса с таблицы sport_county4 для столбца "id_sc"
         $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
-        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country3 WHERE link=(?s)", $link);
-        $putArray["id_sc"] = $arrayId[0]["id"];
+        $arrayId = $this->dbHelper->query("SELECT id FROM sport_country4 WHERE link=(?s)", $link);
+        $putArray["id_sc"] = (array_key_exists(0, $arrayId)) ? $arrayId[0]["id"] : '';
 
         //проверка на дубли
-        $result = $this->dbHelper->query("SELECT * FROM tournament3 WHERE link=(?s)", $putArray["link"]);
+        $result = $this->dbHelper->query("SELECT * FROM tournament4 WHERE link=(?s)", $putArray["link"]);
 
         if (!$result) {
             //записываем все в бд
-            $this->dbHelper->query("INSERT INTO tournament3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+            $this->dbHelper->query("INSERT INTO tournament4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         }
     }
 
@@ -813,18 +475,18 @@ class OddsportalComParser extends Parser
         $partLink = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
 
         $putArray['link'] = $partLink;
-        $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport3 WHERE name=(?s)", $event['type_sport'])[0]["id"];
-        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country3 WHERE name=(?s)", $event['country'])[0]["id"];
+        $putArray['id_sport'] = $this->dbHelper->query("SELECT id FROM sport4 WHERE name=(?s)", $event['type_sport'])[0]["id"];
+        $putArray['id_country'] = $this->dbHelper->query("SELECT id FROM country4 WHERE name=(?s)", $event['country'])[0]["id"];
 
-        //проверка на дубли
-        $result = $this->dbHelper->query("SELECT * FROM sport_country3 WHERE link=(?s)", $partLink);
+        // check on dublicate
+        $result = $this->dbHelper->query("SELECT * FROM sport_country4 WHERE link=(?s)", $partLink);
 
         if (!$result) {
-            //записываем все в бд
-            $this->dbHelper->query("INSERT INTO sport_country3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+            // write all in database
+            $this->dbHelper->query("INSERT INTO sport_country4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } else {
-            // если такая страна есть, то открываем ее для пользователей
-            $this->dbHelper->query("UPDATE sport_country3 SET `hide`=0, `id_sport`=(?), `id_country`=(?) WHERE `link`=(?s)",
+            // if that country have, then open her for users
+            $this->dbHelper->query("UPDATE sport_country4 SET `hide`=0, `id_sport`=(?), `id_country`=(?) WHERE `link`=(?s)",
                 $putArray['id_sport'], $putArray['id_country'], $partLink);
         }
     }
@@ -852,48 +514,48 @@ class OddsportalComParser extends Parser
 
         $putArray["id_market"] = '';
 
-        // get id of first market (default)
-        if ($event["markets"]) {
-            $putArray["id_market"] = $event["markets"][0]["code"];
-            $arrayResult = $this->dbHelper->query("SELECT id FROM market3 WHERE code=(?s)", $event["markets"][0]["code"]);
-            $putArray["id_market"] = $arrayResult[0]["id"];
-        }
+//        // get id of first market (default)
+//        if ($event["markets"]) {
+//            $putArray["id_market"] = $event["markets"][0]["market_name"];
+//            $arrayResult = $this->dbHelper->query("SELECT id FROM market4 WHERE code=(?s)", $event["markets"][0]["code"]);
+//            $putArray["id_market"] = $arrayResult[0]["id"];
+//        }
 
         //проверка на дубли
-        $result = $this->dbHelper->query("SELECT * FROM sport3 WHERE name=(?s)", $putArray["name"]);
+        $result = $this->dbHelper->query("SELECT * FROM sport4 WHERE name=(?s)", $putArray["name"]);
 
         if (!$result) {
             //записываем все в бд
-            $this->dbHelper->query("INSERT INTO sport3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+            $this->dbHelper->query("INSERT INTO sport4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
         } elseif (!empty($putArray["id_market"])) {
-            $this->dbHelper->query("UPDATE sport3 SET `hide`=0, `id_market`=(?) WHERE `link`=(?s)", $putArray["id_market"], $putArray["link"]);
+            $this->dbHelper->query("UPDATE sport4 SET `hide`=0, `id_market`=(?) WHERE `link`=(?s)", $putArray["id_market"], $putArray["link"]);
         } else {
             // return sport from hide
-            $this->dbHelper->query("UPDATE sport3 SET `hide`=0 WHERE `link`=(?s)", $putArray["link"]);
+            $this->dbHelper->query("UPDATE sport4 SET `hide`=0 WHERE `link`=(?s)", $putArray["link"]);
         }
     }
 
     protected function putInMarket($event)
     {
-        //берем все рынки события
+        // get all markets of events
         $arrayMarkets = $event["markets"];
 
         //считаем их
         $countMarkets = count($arrayMarkets);
 
-        //проходимся по всем рынкам
+        // go in every market and get him data
         for ($i = 0; $i < $countMarkets; $i++) {
 
             //формирование массива для записи в бд
             $putArray["name"] = $arrayMarkets[$i]["market_name"];
-            $putArray["code"] = $arrayMarkets[$i]["code"];
+            $putArray["code"] = $arrayMarkets[$i]["market_id"];
 
-            //проверка на дубли
-            $result = $this->dbHelper->query("SELECT * FROM market3 WHERE name=(?s)", $putArray["name"]);
+            // check on dublicate
+            $result = $this->dbHelper->query("SELECT * FROM market4 WHERE name=(?s)", $putArray["name"]);
 
             if (!$result) {
-                //записываем все в бд
-                $this->dbHelper->query("INSERT INTO market3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+                // write all in database
+                $this->dbHelper->query("INSERT INTO market4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
             }
         }
     }
@@ -905,66 +567,54 @@ class OddsportalComParser extends Parser
         $putArray["name"] = $event["name"];
         $putArray["link"] = $event["link"];
 
-        //>>>получение ссылки на турнир и запрос его айди с таблицы tournament2
+        //>>>получение ссылки на турнир и запрос его айди с таблицы tournament4
         //получаем часть ссылки на турнир
         $arrayPartsLink = explode('/', $event["link"]);
         //собираем нужную часть ссылки
         $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
         //запрашиваем
-        $arrayId = $this->dbHelper->query("SELECT id FROM tournament3 WHERE link=(?s)", $link);
+        $arrayId = $this->dbHelper->query("SELECT id FROM tournament4 WHERE link=(?s)", $link);
         $putArray["id_tournament"] = $arrayId[0]["id"];
         //<<<
 
         //удаление старых событий
-        $this->dbHelper->query("DELETE FROM event3 WHERE `link`=(?s)", $putArray["link"]);
+        $this->dbHelper->query("DELETE FROM event4 WHERE `link`=(?s)", $putArray["link"]);
 
         //добавление новых
-        $this->dbHelper->query("INSERT INTO event3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-
+        $this->dbHelper->query("INSERT INTO event4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
     }
 
     protected function putInBookmakers($event)
     {
         $count = count($event['bookmakers']);
-
         for ($i = 0; $i < $count; $i++) {
-
             $array = $event['bookmakers'][$i];
-
-            $this->dbHelper->query("INSERT INTO bookmaker3 (?#) VALUES (?a)", array_keys($array), array_values($array));
-
+            $this->dbHelper->query("INSERT INTO bookmaker4 (?#) VALUES (?a)", array_keys($array), array_values($array));
         }
     }
 
     protected function putInCountry($event)
     {
         $array["name"] = $event['country'];
-
         //проверка на дубли
-        $result = $this->dbHelper->query("SELECT name FROM country3 WHERE name=(?s)", $array["name"]);
-
+        $result = $this->dbHelper->query("SELECT name FROM country4 WHERE name=(?s)", $array["name"]);
         if (!$result) {
-
-            $this->dbHelper->query("INSERT INTO country3 (?#) VALUES (?a)", array_keys($array), array_values($array));
-
+            $this->dbHelper->query("INSERT INTO country4 (?#) VALUES (?a)", array_keys($array), array_values($array));
         }
     }
 
     protected function checkEvent($html, $arrayMergesData)
     {
         if (empty($arrayMergesData["markets"])) {
-
             $arrayMergesData["ignore_event"] = 1;
-
         }
-
         return $arrayMergesData;
     }
 
     protected function putInEventMarkets($event)
     {
-        //получаем айдишник события с таблицы, где они хранятся
-        $idEvent = $this->dbHelper->query("SELECT id FROM event3 WHERE link=" . "'" . $event["link"] . "'" . " ");
+        // get id of event from table where they have
+        $idEvent = $this->dbHelper->query("SELECT id FROM event4 WHERE link=" . "'" . $event["link"] . "'" . " ");
 
         //берем все рынки события
         $arrayMarkets = $event["markets"];
@@ -977,21 +627,19 @@ class OddsportalComParser extends Parser
 
             $nameMarket = $arrayMarkets[$i]["market_name"];
 
-            $idMarket = $this->dbHelper->query("SELECT id FROM market3 WHERE name=" . "'" . $nameMarket . "'" . " ");
+            $idMarket = $this->dbHelper->query("SELECT id FROM market4 WHERE name=" . "'" . $nameMarket . "'" . " ");
 
             //формирование массива для записи в бд
             $putArray["id_event"] = (int)$idEvent[0]["id"];
             $putArray["id_market"] = (int)$idMarket[0]["id"];
 
             //проверка на дубли
-            $result = $this->dbHelper->query("SELECT * FROM event_market3 WHERE `id_event`=(?s) AND `id_market`=(?s)",
+            $result = $this->dbHelper->query("SELECT * FROM event_market4 WHERE `id_event`=(?s) AND `id_market`=(?s)",
                 $putArray["id_event"], $putArray["id_market"]);
 
             if (!$result) {
-
                 //записываем все в бд
-                $this->dbHelper->query("INSERT INTO event_market3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-
+                $this->dbHelper->query("INSERT INTO event_market4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
             }
         }
     }
@@ -999,10 +647,8 @@ class OddsportalComParser extends Parser
     protected function putInSportSport2($event)
     {
         //получаем айдишник вида спорта с таблицы, где они хранятся
-        $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
-
-        $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
-
+        $idSport = $this->dbHelper->query("SELECT id FROM sport4 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ")[0]["id"];
+        $this->dbHelper->query("UPDATE sport_sport2 SET `id4`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
     }
 
     protected function modifiedUrlOnEvent($urlOnEvent)
@@ -1095,6 +741,41 @@ class OddsportalComParser extends Parser
             'name' => 'Esports',
             'url' => 'esports',
             'id' => 36
+        ],
+        [
+            'name' => 'Rugby League',
+            'url' => 'rugby-league',
+            'id' => 19
+        ],
+        [
+            'name' => 'Boxing',
+            'url' => 'boxing',
+            'id' => 16
+        ],
+        [
+            'name' => 'MMA',
+            'url' => 'mma',
+            'id' => 28
+        ],
+        [
+            'name' => 'Futsal',
+            'url' => 'futsal',
+            'id' => 11
+        ],
+        [
+            'name' => 'Beach Volleyball',
+            'url' => 'beach-volleyball',
+            'id' => 17
+        ],
+        [
+            'name' => 'Aussie Rules',
+            'url' => 'aussie-rules',
+            'id' => 18
+        ],
+        [
+            'name' => 'Pesäpallo',
+            'url' => 'pesapallo',
+            'id' => 30
         ],
     ];
 }
