@@ -456,7 +456,7 @@ class OddsportalComParser extends Parser
         //получение айди-индекса с таблицы sport_county4 для столбца "id_sc"
         $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/";
         $arrayId = $this->dbHelper->query("SELECT id FROM sport_country4 WHERE link=(?s)", $link);
-        $putArray["id_sc"] = (array_key_exists(0, $arrayId)) ? $arrayId[0]["id"] : '';
+        $putArray["id_sc"] = (array_key_exists(0, $arrayId)) ? (int)$arrayId[0]["id"] : NULL;
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM tournament4 WHERE link=(?s)", $putArray["link"]);
@@ -658,7 +658,7 @@ class OddsportalComParser extends Parser
 
     protected $arraySpotsData = [
         [
-            'name' => 'Soccer',
+            'name' => 'Football',
             'url' => 'soccer',
             'id' => 1
         ],
@@ -778,4 +778,11 @@ class OddsportalComParser extends Parser
             'id' => 30
         ],
     ];
+
+    protected function putInCountryCountry2($event)
+    {
+        $country = $event["country"];
+        $idCountry = $this->dbHelper->query("SELECT id FROM country4 WHERE `name`=?", $country)[0]['id'];
+        $this->dbHelper->query("UPDATE country_country2 SET `id4`=? WHERE `name`=?", $idCountry, $country);
+    }
 }

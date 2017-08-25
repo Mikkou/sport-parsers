@@ -714,7 +714,6 @@ class BetbrainComParser extends Parser
     {
         //получаем айдишник вида спорта с таблицы, где они хранятся
         $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
-
         $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
     }
 
@@ -731,5 +730,12 @@ class BetbrainComParser extends Parser
             . '&registeringForUpdates=true&domain=www.betbrain.com&method=get';
 
         return $newUrl;
+    }
+
+    protected function putInCountryCountry2($event)
+    {
+        $country = $event["country"];
+        $idCountry = $this->dbHelper->query("SELECT id FROM country4 WHERE `name`=?", $country)[0]['id'];
+        $this->dbHelper->query("UPDATE country_country2 SET `id4`=? WHERE `name`=?", $idCountry, $country);
     }
 }

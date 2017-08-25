@@ -559,14 +559,10 @@ class DevBmbetsComParser extends Parser
     protected function putInCountry($event)
     {
         $array = $event['country'];
-
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT name FROM country2 WHERE name=(?s)", $array["name"]);
-
         if (!$result) {
-
             $this->dbHelper->query("INSERT INTO country2 (?#) VALUES (?a)", array_keys($array), array_values($array));
-
         }
     }
 
@@ -691,5 +687,12 @@ class DevBmbetsComParser extends Parser
     protected function modifiedUrlOnEvent($urlOnEvent)
     {
         return $urlOnEvent;
+    }
+
+    protected function putInCountryCountry2($event)
+    {
+        $country = $event["country"];
+        $idCountry = $this->dbHelper->query("SELECT id FROM country2 WHERE `name`=?", $country)[0]['id'];
+        $this->dbHelper->query("UPDATE country_country2 SET `id2`=? WHERE `name`=?", $idCountry, $country);
     }
 }

@@ -747,25 +747,18 @@ class BetexplorerComParser extends Parser
     protected function putInCountry($event)
     {
         $array["name"] = $event['country'];
-
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT name FROM country3 WHERE name=(?s)", $array["name"]);
-
         if (!$result) {
-
             $this->dbHelper->query("INSERT INTO country3 (?#) VALUES (?a)", array_keys($array), array_values($array));
-
         }
     }
 
     protected function checkEvent($html, $arrayMergesData)
     {
         if (empty($arrayMergesData["markets"])) {
-
             $arrayMergesData["ignore_event"] = 1;
-
         }
-
         return $arrayMergesData;
     }
 
@@ -796,10 +789,8 @@ class BetexplorerComParser extends Parser
                 $putArray["id_event"], $putArray["id_market"]);
 
             if (!$result) {
-
                 //записываем все в бд
                 $this->dbHelper->query("INSERT INTO event_market3 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
-
             }
         }
     }
@@ -808,13 +799,18 @@ class BetexplorerComParser extends Parser
     {
         //получаем айдишник вида спорта с таблицы, где они хранятся
         $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
-
         $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
-
     }
 
     protected function modifiedUrlOnEvent($urlOnEvent)
     {
         return $urlOnEvent;
+    }
+
+    protected function putInCountryCountry2($event)
+    {
+        $country = $event["country"];
+        $idCountry = $this->dbHelper->query("SELECT id FROM country3 WHERE `name`=?", $country)[0]['id'];
+        $this->dbHelper->query("UPDATE country_country2 SET `id3`=? WHERE `name`=?", $idCountry, $country);
     }
 }
