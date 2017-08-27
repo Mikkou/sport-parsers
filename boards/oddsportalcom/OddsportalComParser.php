@@ -260,7 +260,7 @@ class OddsportalComParser extends Parser
         $arrayBookmakers = [];
         foreach ($bookmakers_data as $id => $objectWithName) {
             $array["name"] = $objectWithName->WebName;
-            $array["id"] = (int)$id;
+            $array["id_from_site"] = (int)$objectWithName->idProvider;
             $arrayBookmakers[] = $array;
         }
         /// <<<< eng getting all bookmakers
@@ -603,7 +603,14 @@ class OddsportalComParser extends Parser
         $count = count($event['bookmakers']);
         for ($i = 0; $i < $count; $i++) {
             $array = $event['bookmakers'][$i];
-            $this->dbHelper->query("INSERT INTO bookmaker4 (?#) VALUES (?a)", array_keys($array), array_values($array));
+            $idFromSite = $event['bookmakers'][$i]["id_from_site"];
+            $nameBookmaker = $event['bookmakers'][$i]["name"];
+            $result = $this->dbHelper->query("SELECT * FROM bookmaker4 WHERE id_from_site={$idFromSite}");
+            if (!$result) {
+                $this->dbHelper->query("INSERT INTO bookmaker4 (?#) VALUES (?a)", array_keys($array), array_values($array));
+            } else {
+                $this->dbHelper->query("UPDATE bookmaker4 SET id_from_site={$idFromSite} WHERE name={$nameBookmaker}");
+            }
         }
     }
 
