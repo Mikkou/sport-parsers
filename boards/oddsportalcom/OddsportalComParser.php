@@ -516,12 +516,14 @@ class OddsportalComParser extends Parser
 
         $putArray["id_market"] = '';
 
-//        // get id of first market (default)
-//        if ($event["markets"]) {
-//            $putArray["id_market"] = $event["markets"][0]["market_name"];
-//            $arrayResult = $this->dbHelper->query("SELECT id FROM market4 WHERE code=(?s)", $event["markets"][0]["code"]);
-//            $putArray["id_market"] = $arrayResult[0]["id"];
-//        }
+        // get id of first market (default)
+        if ($event["markets"]) {
+            $codeMarket = $event["markets"][0]["market_id"];
+            $codePeriod = $event["markets"][0]["time_outs"][0]["time_out_id"];
+            $arrayResult = $this->dbHelper->query("SELECT id FROM market4 WHERE code_market=(?s) AND code_period=(?s)",
+                $codeMarket, $codePeriod);
+            $putArray["id_market"] = $arrayResult[0]["id"];
+        }
 
         //проверка на дубли
         $result = $this->dbHelper->query("SELECT * FROM sport4 WHERE name=(?s)", $putArray["name"]);
