@@ -199,10 +199,13 @@ class OddsportalComParser extends Parser
                 $arrayMarkets["market_id"] = $match_odd_id;
                 $arrayMarkets["time_outs"] = [];
                 foreach ($match_odd_value as $match_scope_key => $match_scope_value) {
+                    $arrayTimeOut = [];
                     $timeOutName = $this->get_scope_name($match_scope_key);
                     if (!in_array($timeOutName, $arrayMarkets["time_outs"])) {
-                        $arrayMarkets["time_outs"][] = $timeOutName;
+                        $arrayTimeOut["time_out_name"] = $timeOutName;
+                        $arrayTimeOut["time_out_id"] = $match_scope_key;
                     }
+                    $arrayMarkets["time_outs"][] = $arrayTimeOut;
                 }
                 $resultArrayMarkets[] = $arrayMarkets;
             }
@@ -361,7 +364,6 @@ class OddsportalComParser extends Parser
 
     protected function get_default_bet_type($sport_id)
     {
-
         $moneyLineSports = array(
             '6' => 0,
             '2' => 1,
@@ -546,16 +548,26 @@ class OddsportalComParser extends Parser
         // go in every market and get him data
         for ($i = 0; $i < $countMarkets; $i++) {
 
-            //формирование массива для записи в бд
-            $putArray["name"] = $arrayMarkets[$i]["market_name"];
-            $putArray["code"] = $arrayMarkets[$i]["market_id"];
+            //считаем кол-во таймаутов
+            $countPeriods = count($arrayMarkets[$i]["time_outs"]);
 
-            // check on dublicate
-            $result = $this->dbHelper->query("SELECT * FROM market4 WHERE name=(?s)", $putArray["name"]);
+            //проходимся по всем таймаутам
+            for ($u = 0; $u < $countPeriods; $u++) {
 
-            if (!$result) {
-                // write all in database
-                $this->dbHelper->query("INSERT INTO market4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+                //формирование массива для записи в бд
+                $putArray["code_market"] = $arrayMarkets[$i]["market_id"];
+                $putArray["code_period"] = $arrayMarkets[$i]["time_outs"][$u]["time_out_id"];
+                $putArray["name"] = $arrayMarkets[$i]["market_name"];
+                $putArray["period"] = $arrayMarkets[$i]["time_outs"][$u]["time_out_name"];
+
+                //проверка на дубли
+                $result = $this->dbHelper->query("SELECT * FROM market4 WHERE code_market=(?s) AND code_period=(?s)",
+                    $putArray["code_market"], $putArray["code_period"]);
+
+                if (!$result) {
+                    //записываем все в бд
+                    $this->dbHelper->query("INSERT INTO market4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+                }
             }
         }
     }
