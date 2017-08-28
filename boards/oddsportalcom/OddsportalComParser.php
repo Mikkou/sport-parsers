@@ -646,21 +646,25 @@ class OddsportalComParser extends Parser
         //проходимся по всем рынкам
         for ($i = 0; $i < $countMarkets; $i++) {
 
-            $nameMarket = $arrayMarkets[$i]["market_name"];
+            $nameMarket = "'" . $arrayMarkets[$i]["market_name"] . "'";
 
-            $idMarket = $this->dbHelper->query("SELECT id FROM market4 WHERE name=" . "'" . $nameMarket . "'" . " ");
+            $countPeriods = count($arrayMarkets[$i]['time_outs']);
+            for ($t = 0; $t < $countPeriods; $t++) {
+                $namePeriod = "'" . $arrayMarkets[$i]['time_outs'][$t]['time_out_name'] . "'";
+                $idMarket = $this->dbHelper->query("SELECT id FROM market4 WHERE name={$nameMarket} AND period={$namePeriod}");
 
-            //формирование массива для записи в бд
-            $putArray["id_event"] = (int)$idEvent[0]["id"];
-            $putArray["id_market"] = (int)$idMarket[0]["id"];
+                //формирование массива для записи в бд
+                $putArray["id_event"] = (int)$idEvent[0]["id"];
+                $putArray["id_market"] = (int)$idMarket[0]["id"];
 
-            //проверка на дубли
-            $result = $this->dbHelper->query("SELECT * FROM event_market4 WHERE `id_event`=(?s) AND `id_market`=(?s)",
-                $putArray["id_event"], $putArray["id_market"]);
+                //проверка на дубли
+                $result = $this->dbHelper->query("SELECT * FROM event_market4 WHERE `id_event`=(?s) AND `id_market`=(?s)",
+                    $putArray["id_event"], $putArray["id_market"]);
 
-            if (!$result) {
-                //записываем все в бд
-                $this->dbHelper->query("INSERT INTO event_market4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+                if (!$result) {
+                    //записываем все в бд
+                    $this->dbHelper->query("INSERT INTO event_market4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+                }
             }
         }
     }
