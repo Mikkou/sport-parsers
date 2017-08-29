@@ -810,4 +810,15 @@ class OddsportalComParser extends Parser
         $idCountry = $this->dbHelper->query("SELECT id FROM country4 WHERE `name`=?", $country)[0]['id'];
         $this->dbHelper->query("UPDATE country_country2 SET `id4`=? WHERE `name`=?", $idCountry, $country);
     }
+
+    protected function putInBookmakerBookmaker2($event)
+    {
+        // update ids of bookmakers
+        $count = count($event["bookmakers"]);
+        for ($i = 0; $i < $count; $i++) {
+            $nameBookmaker = $event["bookmakers"][$i]["name"];
+            $idBookmaker = $this->dbHelper->query("SELECT id FROM bookmaker4 WHERE `name`=?", $nameBookmaker)[0]['id'];
+            $this->dbHelper->query("UPDATE bookmaker_bookmaker2 SET `id4`={$idBookmaker} WHERE `name`=?", $nameBookmaker);
+        }
+    }
 }

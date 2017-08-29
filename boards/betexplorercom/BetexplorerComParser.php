@@ -813,4 +813,9 @@ class BetexplorerComParser extends Parser
         $idCountry = $this->dbHelper->query("SELECT id FROM country3 WHERE `name`=?", $country)[0]['id'];
         $this->dbHelper->query("UPDATE country_country2 SET `id3`=? WHERE `name`=?", $idCountry, $country);
     }
+
+    protected function putInBookmakerBookmaker2($event)
+    {
+        return '';
+    }
 }

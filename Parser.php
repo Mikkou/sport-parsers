@@ -130,6 +130,8 @@ abstract class Parser
         if (array_key_exists('ignore_event', $event)) { return ''; }
         //конторы
         $this->putInBookmakers($event);
+        // слитие всех айдишников букмейкеров в одну таблицу
+        $this->putInBookmakerBookmaker2($event);
         //страны
         $this->putInCountry($event);
         //турниры (должен быть перед putInEvent)
@@ -265,4 +267,6 @@ abstract class Parser
     abstract protected function putInCountryCountry2($event);
 
     abstract protected function modifiedUrlOnEvent($urlOnEvent);
+
+    abstract protected function putInBookmakerBookmaker2($event);
 }
