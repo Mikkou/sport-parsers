@@ -191,6 +191,12 @@ class OddsportalComParser extends Parser
         preg_match($re, $html, $matches);
 
         $match_odds = json_decode($matches[1]);
+
+//        // решаем заносить событие в базу или нет исходя из наличия коэффициентов
+//        if (!$match_odds->d->oddsdata->lay) {
+//            $resultArray["ignore_event"] = 1;
+//        }
+
         $resultArrayMarkets = [];
 
         if (array_key_exists('nav', $match_odds->d)) {
@@ -673,7 +679,7 @@ class OddsportalComParser extends Parser
     {
         //получаем айдишник вида спорта с таблицы, где они хранятся
         $idSport = $this->dbHelper->query("SELECT id FROM sport4 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ")[0]["id"];
-        $this->dbHelper->query("UPDATE sport_sport2 SET `id4`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
+        $this->dbHelper->query("UPDATE sport_sport2 SET `id4`=" . $idSport . ", `enable`=1 WHERE `name`=" . "'" . $event["type_sport"] . "'");
     }
 
     protected function modifiedUrlOnEvent($urlOnEvent)
@@ -816,9 +822,18 @@ class OddsportalComParser extends Parser
         // update ids of bookmakers
         $count = count($event["bookmakers"]);
         for ($i = 0; $i < $count; $i++) {
-            $nameBookmaker = $event["bookmakers"][$i]["name"];
-            $idBookmaker = $this->dbHelper->query("SELECT id FROM bookmaker4 WHERE `name`=?", $nameBookmaker)[0]['id'];
-            $this->dbHelper->query("UPDATE bookmaker_bookmaker2 SET `id4`={$idBookmaker} WHERE `name`=?", $nameBookmaker);
+            $nameBookmaker = "'" . $event["bookmakers"][$i]["name"] . "'";
+            $idBookmaker = (int)$this->dbHelper->query("SELECT id FROM bookmaker4 WHERE `name`={$nameBookmaker}")[0]['id'];
+            $check = $this->dbHelper->query("SELECT * FROM bookmaker_bookmaker2 WHERE name={$nameBookmaker}");
+            if ($check) {
+                $this->dbHelper->query("UPDATE bookmaker_bookmaker2 SET `id4`={$idBookmaker}, `enable`=1 WHERE `name`={$nameBookmaker}");
+            } else {
+                $array["name"] = str_replace("'", "", $nameBookmaker);
+                $array["id4"] = $idBookmaker;
+                $array["enable"] = 1;
+                $this->dbHelper->query("INSERT INTO bookmaker_bookmaker2 (?#) VALUES (?a)",
+                    array_keys($array), array_values($array));
+            }
         }
     }
 }

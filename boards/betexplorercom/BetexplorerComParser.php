@@ -799,7 +799,7 @@ class BetexplorerComParser extends Parser
     {
         //получаем айдишник вида спорта с таблицы, где они хранятся
         $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
-        $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . " WHERE `name`=" . "'" . $event["type_sport"] . "'");
+        $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . ", `enable`=1 WHERE `name`=" . "'" . $event["type_sport"] . "'");
     }
 
     protected function modifiedUrlOnEvent($urlOnEvent)
