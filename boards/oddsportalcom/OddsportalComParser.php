@@ -174,9 +174,9 @@ class OddsportalComParser extends Parser
 
         $breadcrumb = $this->getHtmlObject($htmlOdd, '#breadcrumb > a');
 
-        $sport_name = $breadcrumb[1]->plaintext;
-        $sport_country = $breadcrumb[2]->plaintext;
-        $sport_match_name = $breadcrumb[3]->plaintext;
+        $sport_name = trim($breadcrumb[1]->plaintext);
+        $sport_country = trim($breadcrumb[2]->plaintext);
+        $sport_match_name = trim($breadcrumb[3]->plaintext);
 
         $hash = $this->get_hash($htmlOdd);
         $hash_id = $hash->id;
@@ -476,6 +476,10 @@ class OddsportalComParser extends Parser
         if (!$result) {
             //записываем все в бд
             $this->dbHelper->query("INSERT INTO tournament4 (?#) VALUES (?a)", array_keys($putArray), array_values($putArray));
+        } else {
+            // if that country have, then open her for users
+            $this->dbHelper->query("UPDATE tournament4 SET `id_sc`=(?), `name`=(?) WHERE `link`=(?s)",
+                $putArray['id_sc'], $putArray['name'], $putArray['link']);
         }
     }
 
