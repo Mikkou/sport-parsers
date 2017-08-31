@@ -58,7 +58,7 @@ class OddsportalComParser extends Parser
 
         $hash = urldecode($hash->xHashf->{$date});
 
-        $html = $this->getWeb('http://fb.oddsportal.com/ajax-next-games/' . $sportId . '/0/2/' . $date . '/' . $hash . '.dat?_=1479303161702', false, $headers);
+        $html = $this->getHtmlContentFromUrl('http://fb.oddsportal.com/ajax-next-games/' . $sportId . '/0/2/' . $date . '/' . $hash . '.dat?_=1479303161702', $headers);
 
         $re = '/(<table.+?>.+?<\\\\\/table>)/';
 
@@ -159,14 +159,18 @@ class OddsportalComParser extends Parser
     {
         $item_url = str_replace('http://www.oddsportal.com', '', $this->urlOnEvent);
 
-        $sport_id = $this->getSportId(explode('/', $item_url)[1]);;
+        $sport_id = $this->getSportId(explode('/', $item_url)[1]);
 
-        $htmlOdd = $this->getWeb('http://www.oddsportal.com' . $item_url);
+        $htmlOdd = $this->getHtmlContentFromUrl('http://www.oddsportal.com' . $item_url);
 
         $breadcrumb = $this->getHtmlObject($htmlOdd, '#col-content > p');
 
+        // >>> get time
         $modifiedTime = str_replace(['date', 'datet', 't'], '', explode('-', $breadcrumb[0]->attr["class"])[0]);
         $time = trim(date('Y-m-d H:i:s', $modifiedTime));
+        $arrayTime = explode(' ', $time);
+        $time = $this->checkDateAndTime($arrayTime[0], $arrayTime[1], -3);
+        /// <<<<
 
         $breadcrumb = $this->getHtmlObject($htmlOdd, '#breadcrumb > a');
 
@@ -185,7 +189,7 @@ class OddsportalComParser extends Parser
 
         $headers = ['Referer: http://www.oddsportal.com' . $item_url];
 
-        $html = $this->getWeb("http://fb.oddsportal.com/feed/match/$hash_version_id-$sport_id-$hash_id-$bet_type-$_scope_id-$hash_xhash.dat?_=1479583158479", false, $headers);
+        $html = $this->getHtmlContentFromUrl("http://fb.oddsportal.com/feed/match/$hash_version_id-$sport_id-$hash_id-$bet_type-$_scope_id-$hash_xhash.dat?_=1479583158479", $headers);
 
         $re = '/globals\.jsonpCallback\(.+?, (.+?)\);/';
         preg_match($re, $html, $matches);
@@ -240,7 +244,7 @@ class OddsportalComParser extends Parser
 //            'Referer: http://www.oddsportal.com' . $item_url
 //        );
 
-        $html = $this->getWeb('http://www.oddsportal.com/res/x/bookies-161111135702-1479567712.js', false, $headers);
+        $html = $this->getHtmlContentFromUrl('http://www.oddsportal.com/res/x/bookies-161111135702-1479567712.js', $headers);
 
         $re = '/var bookmakersData=(.+?);/';
 

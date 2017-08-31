@@ -81,7 +81,7 @@ abstract class Parser
         return $checkedArrayData;
     }
 
-    public function getHtmlContentFromUrl($url, $headers = '')
+    public function getHtmlContentFromUrl($url, $headers = false)
     {
         if (empty($url)) {
             return '';
@@ -95,9 +95,17 @@ abstract class Parser
 
         sleep(1);
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        if ($headers) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
         curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        if ($this->domain === 'oddsportal.com') {
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:49.0) Gecko/20100101 Firefox/49.0');
+        }
+
         if ($this->domain !== 'betbrain.com') {
             curl_setopt($ch, CURLOPT_COOKIEJAR, $cookies);
             curl_setopt($ch, CURLOPT_COOKIEFILE, $cookies);
@@ -214,6 +222,115 @@ abstract class Parser
         $result["day"] = $this->getDateForParse($forWhatDay, "day");
         $result["day"] = ((int)$result["day"] < 10) ? "0" . $result["day"] : $result["day"];
         return $result;
+    }
+
+    /**
+     * преобразование года, месяца, дня, часа в соответствии с заданным таймаутом
+     * @param string $beginDate
+     * @param string  $beginTime
+     * @param int  $defaultTimeZoneOnSite
+     * @return string
+     */
+    protected function checkDateAndTime($beginDate, $beginTime, $defaultTimeZoneOnSite)
+    {
+        $needTime = $this->getTimeZone();
+
+        if ($defaultTimeZoneOnSite < 0) {
+            $fixTime = $needTime + ($defaultTimeZoneOnSite);
+        } else {
+            $fixTime = $needTime - $defaultTimeZoneOnSite;
+        }
+
+        $arrayPartsTime = explode(":", $beginTime);
+
+        // if need add hours
+        if ($fixTime >= 0) {
+
+            // modified format time if happened 24 number
+            $arrayPartsTime[0] = ((int)($arrayPartsTime[0] + $fixTime) === 24) ? "00" : $arrayPartsTime[0] + $fixTime ;
+
+            // if a lot happened fix time and date
+            if ((int)$arrayPartsTime[0] > 24) {
+
+                // get actual time on following day
+                $arrayPartsTime[0] = $arrayPartsTime[0] - 24;
+
+                $arrayPartsDate = explode("-", $beginDate);
+
+                // get separately month and year for check next
+                $month = $arrayPartsDate[1];
+                $year = $arrayPartsDate[0];
+
+                // get actual following day
+                $arrayPartsDate[2] = $arrayPartsDate[2] + 1;
+
+                // get count of days in month for check if we got the big number
+                $daysOfMonthForCheck = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+
+                // if big -> change number of month on next
+                if ($arrayPartsDate[2] > $daysOfMonthForCheck) {
+
+                    // number next month
+                    $arrayPartsDate[2] = $arrayPartsDate[2] - $daysOfMonthForCheck;
+
+                    $arrayPartsDate[1] = $arrayPartsDate[1] + 1;
+
+                    // if very big got number of month
+                    if ($arrayPartsDate[1] > 12) {
+
+                        $arrayPartsDate[1] = $arrayPartsDate[1] - 12;
+
+                        // refresh year
+                        $arrayPartsDate[0] = $arrayPartsDate[0] + 1;
+                    }
+                }
+
+                $beginDate = implode('-', $arrayPartsDate);
+
+            }
+
+            // if need reduce time
+        } else {
+            // if got number with minus change him on plus
+            $fixTime = -($fixTime);
+
+            // if we try take away from number which less than the deductible
+            if ($fixTime > $arrayPartsTime[0]) {
+
+                // learn the remainder of the subtraction for subtraction from the next day
+                $newFixTime = $fixTime - (int)$arrayPartsTime[0];
+
+                $arrayPartsTime[0] = 24 - $newFixTime;
+
+                $arrayPartsDate = explode("-", $beginDate);
+
+                // refresh day
+                $arrayPartsDate[2] = (int)$arrayPartsDate[2] - 1;
+
+                if ($arrayPartsDate[2] === 0) {
+
+                    $arrayPartsDate[1] = ($arrayPartsDate[1] - 1 === 0) ? 12 : $arrayPartsDate[1] - 1;
+
+                    $month = $arrayPartsDate[1];
+                    $year = $arrayPartsDate[0];
+
+                    $arrayPartsDate[2] = cal_days_in_month(CAL_GREGORIAN, $month, $year);
+
+                }
+
+                $beginDate = implode("-", $arrayPartsDate);
+
+            } else {
+                $arrayPartsTime[0] = $arrayPartsTime[0] - $fixTime;
+            }
+        }
+
+        $arrayPartsTime[0] = ((int)$arrayPartsTime[0] < 10) ? "0" . $arrayPartsTime[0] : $arrayPartsTime[0];
+
+        $beginTime = implode(":", $arrayPartsTime);
+
+        return $beginDate . " " . $beginTime;
+
     }
 
     abstract protected function getUrlsOnEvents($url, $forWhatDay);
