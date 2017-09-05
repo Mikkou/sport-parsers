@@ -6,9 +6,12 @@ use parsersPicksgrail\Parser;
 
 class BetbrainComParser extends Parser
 {
-    protected $partHtml;
-    protected $hash = '3d4789a3abe84954b92889bf0bad28bb';
-    protected $jSessionId = 'A166C70D5C6B5CAB6765D89566F3B61A';
+    protected $session_id = '';
+    protected $wsTrack = '';
+    protected $sp = null;
+    protected $websocker_url = null;
+    protected $user_agent_name = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:49.0) Gecko/20100101 Firefox/49.0';
+    protected $bootstrap = '';
 
     function __construct($urlOfCategory, $domain, $config, $keyForOptions, $DBHelper)
     {
@@ -25,15 +28,7 @@ class BetbrainComParser extends Parser
     public function getHeaders()
     {
         $headers = [
-            ':authority:bbfeapi.betbrain.com',
-            ':method:GET',
-            ':scheme:https',
-            'accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'accept-language:ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4',
-            'cache-control:max-age=0',
-            'upgrade-insecure-requests:1',
             'user-agent:Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.90 Safari/537.36',
-            'cookie: JSESSIONID=' . $this->jSessionId . '; gmtTimezoneOffset=0',
         ];
 
         return $headers;
@@ -41,114 +36,299 @@ class BetbrainComParser extends Parser
 
     public function getUrlsOnEvents($typeSport, $forWhatDay)
     {
-        $needDay = (int)$this->getDateForParse($forWhatDay, "day");
-        $arrayCountries = $this->getAllCountriesWithEvents($typeSport);
-        $arrayResultEventsUrls = [];
+        // Заходим на страницу матчей для обновления cookie записей
+        $this->get_web('https://www.betbrain.com/next-matches/');
+        // Парсим уникальный номер посетителя, для дальнейшей работы с сайтом
+        $this->get_wsTrack();
+        //Запрашиваем данные для сокета (сокет необхоим на всем протяжении работы с сайтом)
+        $this->loop_get('https://bbfeapi.betbrain.com/websocket/info?t=1477986468092');
+        // Открываем веб сокет
+        if (!$this->websocket_open('https://bbfeapi.betbrain.com/websocket/249/' . $this->wsTrack . '_1/websocket')) {
+            die("Unable to connect to server " . $this->websocker_url);
+        };
+        // Обновляем сессионный id из сокета
+        $this->websocket_update_session_id();
 
-        $arrayCountries = ['montenegro'];
+        // ***************** предварительная подготовка скрипта для работы сайта закочена, теперь можно отправлять запросы на сайт. **********************
 
-        $countCountries = count($arrayCountries);
-        echo $countCountries . " get countries from single sport. \n";
-        for ($i = 0; $i < $countCountries; $i++) {
+        $json = $this->loop_get('https://bbfeapi.betbrain.com/nextMatches?requestId=5&wsTrack=' . $this->wsTrack .
+            '&pageIndexStart=1&pageIndexEnd=3000&domain=www.betbrain.com&isAdvancedFilters=false&method=get');
+        $matches = json_decode($json);
 
-            $urlForGettingEventsFromCountry = 'https://bbfeapi.' . $this->domain . '/countryOverview/' .
-                $typeSport . '/' . $arrayCountries[$i] . '?requestId=5&wsTrack=' . $this->hash
-                . '&pageIndexStart=1&pageIndexEnd=2000&domain=www.' . $this->domain . '&method=get';
+        dump($matches);
+        die;
 
-            $objectEvents = $this->getHtmlContentFromUrl($urlForGettingEventsFromCountry);
-            $arrayEvents = $objectEvents->data->eventListItems;
-            $countEvents = count($arrayEvents);
-            echo "\n" . ($i + 1) . " - " . $arrayCountries[$i];
-            for ($r = 0; $r < $countEvents; $r++) {
-                // get number of event day
-                $dayOfEvent = (int)explode('-', $arrayEvents[$r]->startDate)[2];
-                // filter events where not need day and not end
-                if (is_null($arrayEvents[$r]->scores) && $dayOfEvent === $needDay) {
-                    $numberEvent = $r;
-                    $numberCountry = $i;
-                    $urlOnEvent = $this->createUrlOnEvent($arrayEvents, $numberEvent, $typeSport, $arrayCountries, $numberCountry);
-                    $arrayResultEventsUrls[] = $urlOnEvent;
-                }
-            }
+        $bootstrap = $this->loop_get('https://bbfeapi.betbrain.com/bootstrap?requestId=5&wsTrack=' . $this->wsTrack . '&entities=BettingType&entities=Currency&entities=EventPart&entities=Location&entities=Provider&entities=Sport&registeringForUpdates=true&domain=www.betbrain.com&method=get');
+        $this->bootstrap = json_decode($bootstrap);
+
+        $resultEvents = [];
+        foreach ($matches->data->events as $event) {
+            // получение ссылки на событие
+            $url = 'https://www.' . $this->domain . '/' . $event->urlSportName . '/' . $event->urlLocationName . '/' .
+                $event->urlTournamentName . '/' . $event->urlMatchName . '/#/' . $event->urlBetTypeName . '/' .
+                $event->urlEventPartName . '/';
+            $resultEvents[] = $url;
         }
 
-        return $arrayResultEventsUrls;
+        return $resultEvents;
     }
 
-    protected function createUrlOnEvent($arrayEvents, $numberEvent, $typeSport, $arrayCountries, $numberCountry)
+    protected function websocket_update_session_id()
     {
-        $tournamentName = $arrayEvents[$numberEvent]->urlTournamentName;
-        $matchName = $arrayEvents[$numberEvent]->urlMatchName;
-        $betTypeName = $arrayEvents[$numberEvent]->urlBetTypeName;
-        $eventPartName = $arrayEvents[$numberEvent]->urlEventPartName;
-        $urlOnEvent = 'https://www.' . $this->domain . '/' . $typeSport . '/' . $arrayCountries[$numberCountry] .
-            '/' . $tournamentName . '/' . $matchName . '/#/' . $betTypeName . '/' . $eventPartName . '/';
-        return $urlOnEvent;
-    }
+        $key = base64_encode(uniqid());
+        $header = "GET $this->websocker_url HTTP/1.1\r\n"
+            . "Host: bbfeapi.betbrain.com\r\n"
+            . "Connection: Upgrade\r\n"
+            . "Pragma: no-cache\r\n"
+            . "Cache-Control: no-cache\r\n"
+            . "Upgrade: websocket\r\n"
+            . "Origin: https://www.betbrain.com\r\n"
+            . "Sec-WebSocket-Version: 13\r\n"
+            . "User-Agent: " . $this->user_agent_name . "\r\n"
+            . "Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4\r\n"
+            . "Sec-WebSocket-Key: $key\r\n"
+            . "Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits\r\n\r\n";
 
-    protected function getAllCountriesWithEvents($nameOfSport)
-    {
-        $urlForGettingCountries = 'https://bbfeapi.betbrain.com/sportOverview/' . $nameOfSport . '?requestId=5&wsTrack=' .
-            $this->hash . '&domain=www.' . $this->domain . '&method=get';
-        $jsonCountries = $this->getHtmlContentFromUrl($urlForGettingCountries);
-        $arrayCountries = [];
+        fwrite($this->sp, $header);
+        stream_set_timeout($this->sp, 5);
+        $reaponse_header = fread($this->sp, 1024);
 
-        if (array_key_exists('countryIdToCountryStatistics', $jsonCountries->data)) {
-            $objectCountries = $jsonCountries->data->countryIdToCountryStatistics;
-            foreach ($objectCountries as $key => $objectSingleCountry) {
-                $arrayCountries[] = $objectCountries->$key->urlCountryName;
-            }
+        if (!strpos($reaponse_header, " 101 ")
+            || !strpos($reaponse_header, 'Sec-WebSocket-Accept: ')
+        ) {
+            die("Server did not accept to upgrade connection to websocket\n"
+                . $reaponse_header);
         }
 
-        return $arrayCountries;
-    }
+        $re = '/JSESSIONID=(.+?);/';
+        preg_match_all($re, $reaponse_header, $matches);
 
-    public function getHtmlContentFromUrl($parseUrl)
-    {
-        $headers = $this->getHeaders();
+        if (count($matches) < 1) {
+            die("websocket session not found!\n");
+        }
 
-        sleep(1);
-        $ch = curl_init($parseUrl);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_HEADER, 0);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        $result = json_decode($result);
-
-        //формирование ответа
-        if ($httpCode === 301 || $httpCode === 302) {
-            //редиректы
-            echo "A redirect has occurred!\n";
-            return false;
-        } elseif ($httpCode === 404) {
-            //страницы не существует
-            return false;
-        } elseif ($httpCode === 200) {
-            return $result;
+        if (isset($matches[1][0])) {
+            $this->session_id = $matches[1][0];
         } else {
-            dump($httpCode);
-            dump($result);
-            $this->hash = $this->getHtmlContentFromUrl('https://bbfeapi.betbrain.com/httphs?method=get')->wsTrack;
-            die;
-            return $this->proxyHelper->getHtmlContentFromUrlWithProxy($parseUrl, $cookies, $headers, $this->domain);
+            $this->session_id = 0;
         }
+
+        $this->set_bbfeapi_session($this->session_id);
+    }
+
+    protected function set_bbfeapi_session($session_id)
+    {
+
+        $new_file_content = [];
+        $cookies = $this->getCookies();
+        $file_content = file($cookies);
+
+        if (count($file_content) == 0) return;
+
+        foreach ($file_content as $file_line) {
+
+            if (strpos($file_line, "#HttpOnly_bbfeapi.betbrain.com") === false) {
+                $new_file_content[] = $file_line;
+            }
+
+        }
+
+        $new_file_content[] = "#HttpOnly_bbfeapi.betbrain.com\tFALSE\t/\tTRUE\t0\tJSESSIONID\t$session_id\n";
+
+        file_put_contents($cookies, $new_file_content);
+
+    }
+
+    protected function websocket_open($url)
+    {
+        $this->websocker_url = $url;
+        $query = parse_url($url);
+        $this->sp = stream_socket_client('ssl://' . $query['host'] . ':443', $errno, $errstr, 5);
+
+        if (!$this->sp) return false;
+        return true;
+    }
+
+    protected function loop_get($url)
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $html = $this->get_web($url);
+            if ($html && stripos($html, 'error') === false) {
+                return $html;
+            }
+            sleep(1);
+            fclose($this->sp);
+            $this->websocket_open('https://bbfeapi.betbrain.com/websocket/249/' . $this->wsTrack . '_1/websocket');
+            $this->websocket_update_session_id();
+        }
+        return false;
+    }
+
+    protected function get_wsTrack()
+    {
+        $html = $this->loop_get('https://bbfeapi.betbrain.com/httphs?method=get');
+        if (!$html) {
+            die("error get wsTrack\n" . $GLOBALS['curl_last_error']);
+        }
+        $this->wsTrack = json_decode($html)->wsTrack;
+    }
+
+    protected function get_web($url, $post_fields = false, $headers = false)
+    {
+        if ($curl = curl_init()) {
+
+            $cookies = $this->getCookies();
+            curl_setopt($curl, CURLOPT_URL, $url);
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($curl, CURLOPT_FOLLOWLOCATION, 1);
+            curl_setopt($curl, CURLOPT_USERAGENT, $this->user_agent_name);
+
+            if ($headers) {
+                curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+            }
+
+            if ($post_fields) {
+                curl_setopt($curl, CURLOPT_POST, true);
+                curl_setopt($curl, CURLOPT_POSTFIELDS, $post_fields);
+            }
+
+            curl_setopt($curl, CURLOPT_COOKIEFILE, $cookies);
+            curl_setopt($curl, CURLOPT_COOKIEJAR, $cookies);
+
+            $out = curl_exec($curl);
+
+            if (!$out) {
+                $GLOBALS['curl_last_error'] = curl_error($curl);
+                return false;
+            }
+
+            curl_close($curl);
+
+            return $out;
+
+        }
+    }
+
+    protected function modifiedUrlOnEvent($urlOnEvent)
+    {
+        return '';
     }
 
     protected function getTime($jObj)
     {
-        $resultTime = [];
 
-        foreach ($jObj->data->event as $key => $obj) {
-            $resultTime["date_event"] = $obj->startTime;
+        $this->urlOnEvent = 'https://www.betbrain.com/football/iceland/urvalsdeild/fh-hafnarfjordur-v-umf-grindavik/#/both-teams-to-score/ordinary-time/';
+
+        dump('https://www.betbrain.com/football/iceland/urvalsdeild/fh-hafnarfjordur-v-umf-grindavik/#/both-teams-to-score/ordinary-time/');
+
+        $arrayPartsOfUrl = explode('/', $this->urlOnEvent);
+        $sport = $arrayPartsOfUrl[3];
+        $country = $arrayPartsOfUrl[4];
+        $tournament = $arrayPartsOfUrl[5];
+        $nameEvent = $arrayPartsOfUrl[6];
+        $url = 'https://bbfeapi.betbrain.com/eventOverview/' . $sport . '/' . $country . '/' . $tournament .
+            '/' . $nameEvent . '?requestId=16&wsTrack=' . $this->wsTrack .
+            '&registeringForUpdates=true&domain=www.betbrain.com&method=get';
+
+        $json = $this->loop_get($url);
+        $event = json_decode($json);
+
+        foreach ($event->data->event as $eObj) {
+            $time = $eObj->startTime;
         }
 
+        foreach ($event->data->participant as $eObj) {
+            $partsNames[] = $eObj->name;
+        }
+
+
+        $event_url = $sport . '/' . $country . '/' . $tournament . '/' . $nameEvent;
+
+        $event_overview = $this->loop_get('https://bbfeapi.betbrain.com/eventOverview/' . $event_url . '?requestId=6&wsTrack=' . $this->wsTrack . '&registeringForUpdates=true&domain=www.betbrain.com&method=get');
+        $event_overview = json_decode($event_overview);
+
+        $type_event_part = $this->loop_get('https://bbfeapi.betbrain.com/betTypeEventPart/' . $event_url . '?requestId=7&wsTrack=' . $this->wsTrack . '&registeringForUpdates=true&domain=www.betbrain.com&includeGroups=false&method=get');
+        $type_event_part = json_decode($type_event_part);
+
+        $match_info = [];
+        foreach ($event_overview->data->parents as $item) {
+            $match_info = $item;
+        }
+
+        $sport_name = $this->bootstrap->data->entities->sport->{$match_info->sportId}->name;
+        $location_name = $this->bootstrap->data->entities->location->{$match_info->venueId}->name;
+        $league_name = $match_info->name;
+
+        $match_markets = [];
+        if (count($type_event_part->data[0]->defaultBetTypeEventParts->allAvailableBettingTypes) > 0) {
+
+            foreach ($type_event_part->data[0]->defaultBetTypeEventParts->allAvailableBettingTypes as $available_betting_types_item) {
+
+                $match_markets[] = [
+                    'name' => $this->bootstrap->data->entities->bettingType->{$available_betting_types_item->bettingType->id}->name,
+                    'betting_type_name_url_fragment' => $available_betting_types_item->bettingType->name,
+                    'part_name_url_fragment' => $available_betting_types_item->defaultEventPart->name,
+                    'event_parts' => (array)$available_betting_types_item->availableEventPartIdToEventPartName
+                ];
+            }
+        } else {
+            $tst = 1;
+            $match_markets[] = [
+                'name' => $this->bootstrap->data->entities->bettingType->{$type_event_part->data[0]->defaultBetTypeEventParts->defaultBettingType->id}->name,
+                'betting_type_name_url_fragment' => $type_event_part->data[0]->defaultBetTypeEventParts->defaultBettingType->name,
+                'part_name_url_fragment' => $type_event_part->data[0]->defaultBetTypeEventParts->defaultEventPart->name
+            ];
+        }
+
+        $resultArrayMarkets = [];
+
+
+
+        foreach ($match_markets as $item) {
+            $array['market_name'] = $item['name'];
+            $array['market_id'] = NULL;
+            if (count($item['event_parts']) > 1) {
+                foreach ($item['event_parts'] as $item_event_part_key => $item_event_part_value) {
+                    $name = $this->bootstrap->data->entities->eventPart->{$item_event_part_key}->name;
+                    // останавливаем выборку, если пошел по второму кругу
+//                    if (array_key_exists(0, $array['time_outs'])) {
+//                        if ($array['time_outs'][0]['time_out_name'] === $name) {
+//                            break;
+//                        }
+//                    }
+                    // комплектуем данные в массив
+                    if (!in_array($this->bootstrap->data->entities->eventPart->{$item_event_part_key}->name, $array)) {
+                        $arrayPeriods = [];
+                        $arrayPeriods['time_out_name'] = $name;
+                        $arrayPeriods['time_out_id'] = NULL;
+                        $array['time_outs'][] = $arrayPeriods;
+                    }
+                }
+            }
+            if (!array_key_exists('time_outs', $array)) {
+                $array['time_outs'] = [];
+            }
+            $resultArrayMarkets[] = $array;
+        }
+
+
+        dump($resultArrayMarkets);
+        die;
+
+        dump($event);
+
+        $resultArray["date_event"] = $time;
+        $resultArray["type_sport"] = $sport_name;
+        $resultArray["country"] = $location_name;
+        $resultArray["name_tournament"] = $league_name;
+        $resultArray["name"] = $partsNames[1] . ' vs ' . $partsNames[0];
+
+        dump($resultArray);
+        die;
+
+        $resultArray["markets"] = $resultArrayMarkets;
+        $resultArray["bookmakers"] = $arrayBookmakers;
+        die;
         return $resultTime;
     }
 
@@ -715,21 +895,6 @@ class BetbrainComParser extends Parser
         //получаем айдишник вида спорта с таблицы, где они хранятся
         $idSport = $this->dbHelper->query("SELECT id FROM sport3 WHERE `name`=" . "'" . $event["type_sport"] . "'" . " ");
         $this->dbHelper->query("UPDATE sport_sport2 SET `id3`=" . $idSport . ", `enable`=1 WHERE `name`=" . "'" . $event["type_sport"] . "'");
-    }
-
-    protected function modifiedUrlOnEvent($urlOnEvent)
-    {
-        $arrayPartsUrl = explode('/', $urlOnEvent);
-        $sport = $arrayPartsUrl[3];
-        $country = $arrayPartsUrl[4];
-        $tournament = $arrayPartsUrl[5];
-        $match = $arrayPartsUrl[6];
-
-        $newUrl = 'https://bbfeapi.betbrain.com/eventOverview/' . $sport . '/' . $country
-            . '/' . $tournament . '/' . $match . '?requestId=9&wsTrack=' . $this->hash
-            . '&registeringForUpdates=true&domain=www.betbrain.com&method=get';
-
-        return $newUrl;
     }
 
     protected function putInCountryCountry2($event)

@@ -101,7 +101,7 @@ abstract class Parser
         curl_setopt($ch, CURLOPT_HEADER, 0);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 
-        if ($this->domain === 'oddsportal.com') {
+        if ($this->domain === 'oddsportal.com' || $this->domain === 'betbrain.com') {
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:49.0) Gecko/20100101 Firefox/49.0');
         }
