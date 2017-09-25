@@ -135,13 +135,15 @@ abstract class Parser
     public function putEventInDataBase($event)
     {
         //проверка: игнорировать событие для сохранения в бд или нет
-        if (array_key_exists('ignore_event', $event)) { return ''; }
+        if (array_key_exists('ignore_event', $event)) { return false; }
         //конторы
         $this->putInBookmakers($event);
         // слитие всех айдишников букмейкеров в одну таблицу
         $this->putInBookmakerBookmaker2($event);
         //страны
         $this->putInCountry($event);
+        // должно быть обязательно перед putInSport and putInTournament
+        $this->putInSportCountry($event);
         //турниры (должен быть перед putInEvent)
         $this->putInTournament($event);
         //само событие
@@ -150,8 +152,6 @@ abstract class Parser
         $this->putInMarket($event);
         // data type of sport
         $this->putInSport($event);
-        //
-        $this->putInSportCountry($event);
         //сводная таблица событий и их рынков (метод должен быть после putInEvent)
         $this->putInEventMarkets($event);
         $this->putInSportSport2($event);
@@ -210,8 +210,10 @@ abstract class Parser
     /**
      * @param $forWhatDay - parsing. For example, if get 1 then today, if 2 - tomorrow, and so on.
      * @return array - with parts of need date
+     * @param bool $separator - anyone separator example like '-'
+     * @return mixed
      */
-    protected function getDateForUrl($forWhatDay)
+    protected function getFullDate($forWhatDay, $separator = false)
     {
         // get year in format "2017"
         $result["year"] = $this->getDateForParse($forWhatDay, "year");
@@ -221,6 +223,9 @@ abstract class Parser
         // get number of day like "31" and check (add 0)
         $result["day"] = $this->getDateForParse($forWhatDay, "day");
         $result["day"] = ((int)$result["day"] < 10) ? "0" . $result["day"] : $result["day"];
+        if ($separator) {
+            $result['date'] = $result["year"] . $separator . $result["month"] . $separator . $result["day"];
+        }
         return $result;
     }
 

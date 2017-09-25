@@ -129,7 +129,7 @@ class BetexplorerComParser extends Parser
     {
         // create url with need date
         if ($forWhatDay !== 1) {
-            $date = $this->getDateForUrl($forWhatDay);
+            $date = $this->getFullDate($forWhatDay);
             $url .= "?year=" . $date["year"] . "&month=" . $date["month"] . "&day=" . $date["day"] . "";
         }
 
@@ -710,6 +710,21 @@ class BetexplorerComParser extends Parser
 
     protected function putInBookmakerBookmaker2($event)
     {
-        return '';
+        // update ids of bookmakers
+        $count = count($event["bookmakers"]);
+        for ($i = 0; $i < $count; $i++) {
+            $nameBookmaker = "'" . $event["bookmakers"][$i]["name"] . "'";
+            $idBookmaker = (int)$this->dbHelper->query("SELECT id FROM bookmaker3 WHERE `name`={$nameBookmaker}")[0]['id'];
+            $check = $this->dbHelper->query("SELECT * FROM bookmaker_bookmaker2 WHERE name={$nameBookmaker}");
+            if ($check) {
+                $this->dbHelper->query("UPDATE bookmaker_bookmaker2 SET `id3`={$idBookmaker}, `enable`=1 WHERE `name`={$nameBookmaker}");
+            } else {
+                $array["name"] = str_replace("'", "", $nameBookmaker);
+                $array["id3"] = $idBookmaker;
+                $array["enable"] = 1;
+                $this->dbHelper->query("INSERT INTO bookmaker_bookmaker2 (?#) VALUES (?a)",
+                    array_keys($array), array_values($array));
+            }
+        }
     }
 }

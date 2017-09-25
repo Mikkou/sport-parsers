@@ -33,7 +33,7 @@ class OddsportalComParser extends Parser
     public function getUrlsOnEvents($url, $forWhatDay)
     {
         // get part of need date
-        $date = $this->getDateForUrl($forWhatDay);
+        $date = $this->getFullDate($forWhatDay);
         // join all together
         $date = $date["year"] . $date["month"] . $date["day"];
         echo "\n" . $url . $date . '/';
@@ -602,7 +602,7 @@ class OddsportalComParser extends Parser
         $link = "/" . $arrayPartsLink[3] . "/" . $arrayPartsLink[4] . "/" . $arrayPartsLink[5] . "/";
         //запрашиваем
         $arrayId = $this->dbHelper->query("SELECT id FROM tournament4 WHERE link=(?s)", $link);
-        $putArray["id_tournament"] = $arrayId[0]["id"];
+        $putArray["id_tournament"] = ($arrayId) ? $arrayId[0]["id"] : NULL;
         //<<<
 
         //удаление старых событий
@@ -649,7 +649,7 @@ class OddsportalComParser extends Parser
     protected function putInEventMarkets($event)
     {
         // get id of event from table where they have
-        $idEvent = $this->dbHelper->query("SELECT id FROM event4 WHERE link=" . "'" . $event["link"] . "'" . " ");
+        $idEvent = $this->dbHelper->query("SELECT id FROM event4 WHERE `link`=" . "'" . $event["link"] . "'" . " ");
 
         //берем все рынки события
         $arrayMarkets = $event["markets"];
@@ -668,8 +668,8 @@ class OddsportalComParser extends Parser
                 $idMarket = $this->dbHelper->query("SELECT id FROM market4 WHERE name={$nameMarket} AND period={$namePeriod}");
 
                 //формирование массива для записи в бд
-                $putArray["id_event"] = (int)$idEvent[0]["id"];
-                $putArray["id_market"] = (int)$idMarket[0]["id"];
+                $putArray["id_event"] = ($idEvent) ? (int)$idEvent[0]["id"] : NULL;
+                $putArray["id_market"] = ($idMarket) ? (int)$idMarket[0]["id"] : NULL;
 
                 //проверка на дубли
                 $result = $this->dbHelper->query("SELECT * FROM event_market4 WHERE `id_event`=(?s) AND `id_market`=(?s)",

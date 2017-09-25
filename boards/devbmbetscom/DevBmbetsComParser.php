@@ -698,6 +698,21 @@ class DevBmbetsComParser extends Parser
 
     protected function putInBookmakerBookmaker2($event)
     {
-        return '';
+        // update ids of bookmakers
+        $count = count($event["bookmakers"]);
+        for ($i = 0; $i < $count; $i++) {
+            $nameBookmaker = "'" . $event["bookmakers"][$i]["name"] . "'";
+            $idBookmaker = (int)$this->dbHelper->query("SELECT id FROM bookmaker2 WHERE `name`={$nameBookmaker}")[0]['id'];
+            $check = $this->dbHelper->query("SELECT * FROM bookmaker_bookmaker2 WHERE name={$nameBookmaker}");
+            if ($check) {
+                $this->dbHelper->query("UPDATE bookmaker_bookmaker2 SET `id2`={$idBookmaker}, `enable`=1 WHERE `name`={$nameBookmaker}");
+            } else {
+                $array["name"] = str_replace("'", "", $nameBookmaker);
+                $array["id2"] = $idBookmaker;
+                $array["enable"] = 1;
+                $this->dbHelper->query("INSERT INTO bookmaker_bookmaker2 (?#) VALUES (?a)",
+                    array_keys($array), array_values($array));
+            }
+        }
     }
 }
